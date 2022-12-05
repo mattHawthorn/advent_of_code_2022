@@ -16,17 +16,15 @@ pipenv install --dev
 (activate environment first with `pipenv shell`)
 
 ```shell
-cd solutions
+# help on the commands documented below
+./main.py --help
 
-# docs
-./day01.py --help
+# run solution to day 1 problem
+./main.py run 1
 
-# tests
-./day01.py test
+# run tests for day 1 problem
+./main.py test 1
 
-# solution
-./day01.py
-
-# solution with particular input read from stdin - replace the input file with any other
-cat day01.txt | python day01.py
+# run day 1 solution with particular input read from stdin as opposed to the default input file
+cat my_input.txt | python main.py run 1
 ```

@@ -1,5 +1,10 @@
 #! /usr/bin/env python
+from typing import IO
 
 
-if __name__ == "__main__":
+def run(input_: IO[str]):
+    ...
+
+
+def test():
     ...
