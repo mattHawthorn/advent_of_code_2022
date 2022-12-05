@@ -4,10 +4,8 @@ repos:
     rev: 5.10.1
     hooks:
       - id: isort
-        args: [--filter-files]
+        args: [--filter-files, --line-length, '100']
         files: \.py$
-        additional_dependencies:
-          - toml
   - repo: https://github.com/ambv/black
     rev: 22.3.0
     hooks:
