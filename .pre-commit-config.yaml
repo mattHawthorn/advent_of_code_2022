@@ -38,3 +38,5 @@ repos:
       - id: executable
         name: executable
         entry: chmod u+x
+        files: ^solutions/*\.py
+        language: system
