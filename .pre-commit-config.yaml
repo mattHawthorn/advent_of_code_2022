@@ -40,3 +40,8 @@ repos:
         entry: chmod u+x
         files: ^solutions/*\.py
         language: system
+      - id: shebang
+        name: shebang
+        entry: grep '#! /usr/bin/env python'
+        files: ^solutions/*\.py
+        language: system
