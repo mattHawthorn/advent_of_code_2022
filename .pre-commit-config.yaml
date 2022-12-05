@@ -1,17 +1,5 @@
 ---
 repos:
-  - repo: local
-    hooks:
-      - id: executable
-        name: executable
-        entry: chmod u+x
-        files: ^solutions/.*\.py
-        language: system
-      - id: shebang
-        name: shebang
-        entry: grep '#! /usr/bin/env python'
-        files: ^solutions/.*\.py
-        language: system
   - repo: https://github.com/timothycrosley/isort
     rev: 5.10.1
     hooks:
