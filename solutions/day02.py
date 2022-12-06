@@ -61,13 +61,13 @@ def score_2(their_play: Play, outcome_: Outcome):
     return outcome_ + our_play
 
 
-def run(input_: IO[str], encode_play: bool = False):
-    if encode_play:
-        parse = parse_1
-        score = score_1
+def run(input_: IO[str], part_2: bool = False) -> int:
+    if part_2:
+        parse = parse_2
+        score = score_2
     else:
-        parse = parse_2  # type: ignore
-        score = score_2  # type: ignore
+        parse = parse_1  # type: ignore
+        score = score_1  # type: ignore
 
     games = map(parse, input_)
     scores = starmap(score, games)
