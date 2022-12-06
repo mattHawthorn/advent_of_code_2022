@@ -58,7 +58,7 @@ def move_concurrent(stacks: Stacks[T], inst: Instruction) -> Stacks[T]:
     return move(stacks, inst, sequential=False)
 
 
-def run(input_: IO[str], part_2: bool = True):
+def run(input_: IO[str], part_2: bool = True) -> str:
     stacks = parse_crates(input_)
     instructions = parse_instructions(input_)
     op = move_concurrent if part_2 else move_sequential
