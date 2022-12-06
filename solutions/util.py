@@ -1,5 +1,5 @@
 from functools import partial, reduce
-from typing import Any, Callable, Iterable, Iterator, List, TypeVar
+from typing import Any, Callable, Iterable, Iterator, List, Tuple, TypeVar
 
 T = TypeVar("T")
 U = TypeVar("U")
@@ -16,6 +16,11 @@ def call(x: T, f: Callable[[T], U]) -> U:
 def compose(f: Callable[[T], Any], *fs: Callable[[Any], V]) -> Callable[[T], V]:
     """Compose multiple functions, chaining output to input from left to right"""
     return partial(reduce, call, (f, *fs))  # type: ignore
+
+
+def swap(t: Tuple[T, U]) -> Tuple[U, T]:
+    a, b = t
+    return b, a
 
 
 # I/O
