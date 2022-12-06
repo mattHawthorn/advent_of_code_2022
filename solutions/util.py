@@ -1,4 +1,5 @@
 from functools import partial, reduce
+from itertools import islice
 from typing import Any, Callable, Iterable, Iterator, List, Tuple, TypeVar
 
 T = TypeVar("T")
@@ -21,6 +22,17 @@ def compose(f: Callable[[T], Any], *fs: Callable[[Any], V]) -> Callable[[T], V]:
 def swap(t: Tuple[T, U]) -> Tuple[U, T]:
     a, b = t
     return b, a
+
+
+# Iterators
+
+
+def chunked(n: int, it: Iterable[T]) -> Iterator[List[T]]:
+    return iter(lambda: list(islice(it, n)), [])
+
+
+def first(it: Iterable[T]) -> T:
+    return next(iter(it))
 
 
 # I/O
