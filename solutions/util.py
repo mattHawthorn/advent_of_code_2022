@@ -1,6 +1,7 @@
 from functools import partial, reduce
-from itertools import islice
-from typing import Any, Callable, Iterable, Iterator, List, Tuple, TypeVar
+from itertools import islice, takewhile
+from operator import is_not
+from typing import Any, Callable, Iterable, Iterator, List, Optional, Tuple, TypeVar
 
 T = TypeVar("T")
 U = TypeVar("U")
@@ -33,6 +34,10 @@ def chunked(n: int, it: Iterable[T]) -> Iterator[List[T]]:
 
 def first(it: Iterable[T]) -> T:
     return next(iter(it))
+
+
+def nonnull_head(it: Iterable[Optional[T]]) -> List[T]:
+    return list(takewhile(partial(is_not, None), it))  # type: ignore
 
 
 # I/O
