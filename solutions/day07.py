@@ -140,6 +140,7 @@ def run(
     tree = parse_terminal(input_)
     if verbose:
         print(tree, end="\n\n")
+
     sizes = content_sizes(tree)
     if part_2:
         stat = deletion_candidate(list(sizes), capacity, required)
