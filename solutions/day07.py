@@ -1,28 +1,26 @@
 from functools import partial
 from itertools import chain
 from textwrap import indent
-from typing import IO, Callable, Iterable, Optional, Tuple, Union, cast
+from typing import IO, Callable, NamedTuple, Optional, Tuple, cast
 
-from .util import Leaf, Tree, dfs, identity, print_, set_verbose, tree_acc
-
-DirPath = Tuple[str, ...]
-File = Leaf[str, int]
-Dir = Tree[str, int]
+from .util import Tree, dfs, identity, print_, set_verbose, tree_acc
 
 
-def file_to_str(file):
-    return f"- {file.id} {file.data}"
+class Stat(NamedTuple):
+    is_dir: bool
+    size: int = 0
 
 
-def dir_to_str(dir_):
+File = Tree[str, Stat]
+FilePath = Tuple[str, ...]
+
+
+def dir_to_str(dir_: File):
     header = f"{dir_.id.rstrip('/')}/ {dir_.data}"
-    contents = sorted(dir_, key=lambda f: (isinstance(f, Tree), f.id))  # files first
+    contents = sorted(dir_, key=lambda f: (f.data.is_dir, f.id))  # files first
     return "\n".join(
-        chain([header], map(partial(indent, prefix="  "), map(str, contents)))
+        chain([header], map(partial(indent, prefix="  "), map(dir_to_str, contents)))
     )
-
-
-AnyFile = Union[File, Dir]
 
 
 # Parsing
@@ -37,9 +35,11 @@ def parse_command(line: str) -> Tuple[str, Optional[str]]:
     return (tokens[0], None) if len(tokens) == 1 else (tokens[0], tokens[1])
 
 
-def parse_file_dir(line: str, parent: Optional[Dir] = None) -> Union[File, Dir]:
-    size, name = line.strip().split(" ", 1)
-    return Dir(name, 0, {}, parent) if size == DIR else File(name, int(size), parent)
+def parse_file_dir(line: str, parent: Optional[File] = None) -> File:
+    token1, name = line.strip().split(" ", 1)
+    is_dir = token1 == DIR
+    size = 0 if is_dir else int(token1)
+    return File(name, Stat(is_dir, size), {}, parent)
 
 
 # Commands and terminal constants
@@ -53,12 +53,13 @@ READ_OUTPUT = 1
 READ_COMMAND = 2
 
 
-def parse_terminal(f: IO[str]) -> Dir:
-    filesystem = current_tree = Dir("START", 0, {}, None)
+def parse_terminal(f: IO[str]) -> File:
+    filesystem = current_tree = File("START", Stat(False, 0), {}, None)
     state = READ_COMMAND
     for line in map(str.rstrip, f):
         if state != READ_COMMAND and is_command(line):
             state = READ_COMMAND
+
         if state == READ_COMMAND:
             cmd, maybe_name = parse_command(line)
             if cmd == LS:
@@ -70,10 +71,10 @@ def parse_terminal(f: IO[str]) -> Dir:
                     assert current_tree.parent is not None
                     current_tree = current_tree.parent
                 else:
-                    sub_tree = current_tree.children.get(maybe_name) or Dir(
-                        maybe_name, 0, {}, current_tree
+                    sub_tree = current_tree.children.get(maybe_name) or File(
+                        maybe_name, Stat(True, 0), {}, current_tree
                     )
-                    assert isinstance(sub_tree, Tree)
+                    assert sub_tree.data.is_dir
                     current_tree.children[maybe_name] = sub_tree
                     current_tree = sub_tree
         else:
@@ -82,14 +83,13 @@ def parse_terminal(f: IO[str]) -> Dir:
 
     assert len(filesystem.children) == 1
     root = next(iter(filesystem))
-    assert isinstance(root, Tree)
     return root
 
 
 def deletion_candidate(
-    filesystem: Dir, capacity: int, required: int
-) -> Tuple[DirPath, Dir]:
-    total_size = filesystem.data
+    filesystem: File, capacity: int, required: int
+) -> Tuple[FilePath, File]:
+    total_size = filesystem.data.size
     max_allowable = capacity - required
     must_delete = total_size - max_allowable
     print_(
@@ -99,9 +99,13 @@ def deletion_candidate(
     deletion_candidates = (
         (p, d)
         for p, d in dfs(filesystem)
-        if isinstance(d, Tree) and d.data >= must_delete
+        if d.data.is_dir and d.data.size >= must_delete
     )
     return min(deletion_candidates, key=lambda t: t[1].data)
+
+
+def add_sizes(stats1: Stat, stats2: Stat) -> Stat:
+    return Stat(stats1.is_dir or stats2.is_dir, stats1.size + stats2.size)
 
 
 def run(
@@ -116,17 +120,17 @@ def run(
     filesystem = parse_terminal(input_)
     sized_filesystem = tree_acc(
         filesystem,
-        f=cast(Callable[[int], int], identity),
-        acc=cast(Callable[[Iterable[int]], int], sum),
-        Tree=Dir,
-        Leaf=File,
+        f=cast(Callable[[Stat], Stat], identity),
+        acc=add_sizes,
     )
-    print_(sized_filesystem, end="\n\n")
+    if verbose:
+        s = dir_to_str(sized_filesystem)
+        print_(s, end="\n\n")
     if part_2:
         delete_path, dir_ = deletion_candidate(sized_filesystem, capacity, required)
-        return f"{'/'.join(name.rstrip('/') for name in delete_path)}, {dir_.data}"
+        return f"{'/'.join(name.rstrip('/') for name in delete_path)} {dir_.data.size}"
     else:
-        dir_sizes = (t.data for _, t in dfs(sized_filesystem) if isinstance(t, Tree))
+        dir_sizes = (t.data.size for _, t in dfs(sized_filesystem) if t.data.is_dir)
         small_dir_sizes = filter(max_size.__ge__, dir_sizes)
         return str(sum(small_dir_sizes))
 
@@ -172,7 +176,7 @@ def test():
         capacity=total_size,
         required=e_size - e_size // 3,
     )
-    expected_path = "/a/e"
+    expected_path = "/a/e 584"
     assert path == expected_path, (path, expected_path)
     path = run(
         io.StringIO(test_input),
@@ -180,12 +184,14 @@ def test():
         capacity=total_size,
         required=a_size - a_size // 4,
     )
-    expected_path = "/a"
+    expected_path = "/a 94853"
     assert path == expected_path, (path, expected_path)
     fs = tree_acc(
-        parse_terminal(io.StringIO(test_input)), identity, sum, Tree=Dir, Leaf=File
+        parse_terminal(io.StringIO(test_input)),
+        identity,
+        add_sizes,
     )
     expected_size = sum(map(int, re.findall(r"\d+", test_input)))
-    file_size = sum(s.data for _, s in dfs(fs) if isinstance(s, Leaf))
+    file_size = sum(s.data.size for _, s in dfs(fs) if not s.data.is_dir)
     assert file_size == expected_size, (file_size, expected_size)
-    assert fs.data == expected_size
+    assert fs.data.size == expected_size, (fs.data, expected_size)

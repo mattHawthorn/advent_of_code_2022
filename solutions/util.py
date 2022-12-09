@@ -91,10 +91,10 @@ def dfs(
 def tree_acc(
     tree: Tree[K, T],
     f: Callable[[T], U],
-    acc: Callable[[Iterable[U]], U],
+    acc: Callable[[U, U], U],
 ) -> Tree[K, U]:
     children = {k: tree_acc(t, f, acc) for k, t in tree.children.items()}
-    data = acc(t.data for t in children.values())
+    data = reduce(acc, (t.data for t in children.values()), f(tree.data))
     return Tree(tree.id, data, children)
 
 
