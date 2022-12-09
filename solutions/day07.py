@@ -16,7 +16,10 @@ FilePath = Tuple[str, ...]
 
 
 def dir_to_str(dir_: File):
-    header = f"{dir_.id.rstrip('/')}/ {dir_.data}"
+    if dir_.data.is_dir:
+        header = f"{dir_.id.rstrip('/')}/"
+    else:
+        header = f"{dir_.id} {dir_.data.size}"
     contents = sorted(dir_, key=lambda f: (f.data.is_dir, f.id))  # files first
     return "\n".join(
         chain([header], map(partial(indent, prefix="  "), map(dir_to_str, contents)))
@@ -101,7 +104,7 @@ def deletion_candidate(
         for p, d in dfs(filesystem)
         if d.data.is_dir and d.data.size >= must_delete
     )
-    return min(deletion_candidates, key=lambda t: t[1].data)
+    return min(deletion_candidates, key=lambda t: t[1].data.size)
 
 
 def add_sizes(stats1: Stat, stats2: Stat) -> Stat:
