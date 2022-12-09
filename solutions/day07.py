@@ -1,46 +1,34 @@
 from functools import partial
 from itertools import chain
-from operator import itemgetter
 from textwrap import indent
-from typing import IO, Dict, Iterator, List, NamedTuple, Optional, Tuple, Union
+from typing import IO, Callable, Iterable, Optional, Tuple, Union, cast
+
+from .util import Leaf, Tree, dfs, identity, print_, set_verbose, tree_acc
 
 DirPath = Tuple[str, ...]
+File = Leaf[str, int]
+Dir = Tree[str, int]
 
 
-class File(NamedTuple):
-    name: str
-    size: int
-
-    def __str__(self):
-        return f"- {self.name} {self.size}"
+def file_to_str(file):
+    return f"- {file.id} {file.data}"
 
 
-class FileTree(NamedTuple):
-    name: str
-    contents: Dict[str, Union[File, "FileTree"]]
-    parent: Optional["FileTree"] = None
-
-    def __str__(self):
-        header = f"{self.name.rstrip('/')}/"
-        contents = sorted(
-            self.contents.values(), key=lambda f: (isinstance(f, FileTree), f.name)
-        )
-        return "\n".join(
-            chain([header], map(partial(indent, prefix="  "), map(str, contents)))
-        )
+def dir_to_str(dir_):
+    header = f"{dir_.id.rstrip('/')}/ {dir_.data}"
+    contents = sorted(dir_, key=lambda f: (isinstance(f, Tree), f.id))  # files first
+    return "\n".join(
+        chain([header], map(partial(indent, prefix="  "), map(str, contents)))
+    )
 
 
-class FileStat(NamedTuple):
-    path: DirPath
-    is_dir: bool
-    size: int
-
-    @property
-    def name(self):
-        return "/".join(p if p == "/" else p.rstrip("/") for p in self.path)
+AnyFile = Union[File, Dir]
 
 
-def is_comand(line: str) -> bool:
+# Parsing
+
+
+def is_command(line: str) -> bool:
     return line.startswith("$ ")
 
 
@@ -49,9 +37,9 @@ def parse_command(line: str) -> Tuple[str, Optional[str]]:
     return (tokens[0], None) if len(tokens) == 1 else (tokens[0], tokens[1])
 
 
-def parse_file_dir(line: str) -> Union[File, str]:
+def parse_file_dir(line: str, parent: Optional[Dir] = None) -> Union[File, Dir]:
     size, name = line.strip().split(" ", 1)
-    return name if size == DIR else File(name.rstrip(), int(size))
+    return Dir(name, 0, {}, parent) if size == DIR else File(name, int(size), parent)
 
 
 # Commands and terminal constants
@@ -65,11 +53,11 @@ READ_OUTPUT = 1
 READ_COMMAND = 2
 
 
-def parse_terminal(f: IO[str]) -> FileTree:
-    filesystem = current_tree = FileTree("START", {}, None)
+def parse_terminal(f: IO[str]) -> Dir:
+    filesystem = current_tree = Dir("START", 0, {}, None)
     state = READ_COMMAND
-    for line in f:
-        if state != READ_COMMAND and is_comand(line):
+    for line in map(str.rstrip, f):
+        if state != READ_COMMAND and is_command(line):
             state = READ_COMMAND
         if state == READ_COMMAND:
             cmd, maybe_name = parse_command(line)
@@ -81,52 +69,39 @@ def parse_terminal(f: IO[str]) -> FileTree:
                 if maybe_name == PARENT:
                     assert current_tree.parent is not None
                     current_tree = current_tree.parent
-                elif maybe_name in current_tree.contents:
-                    sub_tree = current_tree.contents[maybe_name]
-                    assert isinstance(sub_tree, FileTree)
-                    current_tree = sub_tree
                 else:
-                    sub_tree = FileTree(maybe_name, {}, current_tree)
-                    current_tree.contents[maybe_name] = sub_tree
+                    sub_tree = current_tree.children.get(maybe_name) or Dir(
+                        maybe_name, 0, {}, current_tree
+                    )
+                    assert isinstance(sub_tree, Tree)
+                    current_tree.children[maybe_name] = sub_tree
                     current_tree = sub_tree
         else:
-            file_or_dir = parse_file_dir(line)
-            if isinstance(file_or_dir, File):
-                current_tree.contents[file_or_dir.name] = file_or_dir
-            elif file_or_dir not in current_tree.contents:
-                current_tree.contents[file_or_dir] = FileTree(
-                    file_or_dir, {}, current_tree
-                )
+            file_or_dir = parse_file_dir(line, current_tree)
+            current_tree.children[file_or_dir.id] = file_or_dir
 
-    assert len(filesystem.contents) == 1
-    root = filesystem.contents["/"]
-    assert isinstance(root, FileTree)
+    assert len(filesystem.children) == 1
+    root = next(iter(filesystem))
+    assert isinstance(root, Tree)
     return root
 
 
-def content_sizes(
-    filesystem: Union[FileTree, File], path: DirPath = ()
-) -> Iterator[FileStat]:
-    full_path = (*path, filesystem.name)
-    if isinstance(filesystem, File):
-        yield FileStat(full_path, False, filesystem.size)
-    else:
-        dir_size = 0
-        for file_or_dir in filesystem.contents.values():
-            contents = content_sizes(file_or_dir, full_path)
-            for stats in contents:
-                yield stats
-                if not stats.is_dir:
-                    dir_size += stats.size
-        yield FileStat(full_path, True, dir_size)
-
-
-def deletion_candidate(stats: List[FileStat], capacity: int, required: int) -> FileStat:
-    total_size = sum(f.size for f in stats if not f.is_dir)
+def deletion_candidate(
+    filesystem: Dir, capacity: int, required: int
+) -> Tuple[DirPath, Dir]:
+    total_size = filesystem.data
     max_allowable = capacity - required
     must_delete = total_size - max_allowable
-    deletion_candidates = (d for d in stats if d.is_dir and d.size >= must_delete)
-    return min(deletion_candidates, key=itemgetter(2))
+    print_(
+        f"Capacity {capacity}, {total_size} used, {capacity - total_size} free, "
+        f"must delete {must_delete} to free {required}"
+    )
+    deletion_candidates = (
+        (p, d)
+        for p, d in dfs(filesystem)
+        if isinstance(d, Tree) and d.data >= must_delete
+    )
+    return min(deletion_candidates, key=lambda t: t[1].data)
 
 
 def run(
@@ -135,19 +110,24 @@ def run(
     capacity: int = 70000000,
     required: int = 30000000,
     part_2: bool = True,
-    verbose: bool = False,
+    verbose: bool = True,
 ) -> str:
-    tree = parse_terminal(input_)
-    if verbose:
-        print(tree, end="\n\n")
-
-    sizes = content_sizes(tree)
+    set_verbose(verbose)
+    filesystem = parse_terminal(input_)
+    sized_filesystem = tree_acc(
+        filesystem,
+        f=cast(Callable[[int], int], identity),
+        acc=cast(Callable[[Iterable[int]], int], sum),
+        Tree=Dir,
+        Leaf=File,
+    )
+    print_(sized_filesystem, end="\n\n")
     if part_2:
-        stat = deletion_candidate(list(sizes), capacity, required)
-        return stat.name
+        delete_path, dir_ = deletion_candidate(sized_filesystem, capacity, required)
+        return f"{'/'.join(name.rstrip('/') for name in delete_path)}, {dir_.data}"
     else:
-        dir_sizes = filter(itemgetter(1), sizes)
-        small_dir_sizes = filter(max_size.__ge__, map(itemgetter(2), dir_sizes))
+        dir_sizes = (t.data for _, t in dfs(sized_filesystem) if isinstance(t, Tree))
+        small_dir_sizes = filter(max_size.__ge__, dir_sizes)
         return str(sum(small_dir_sizes))
 
 
@@ -178,6 +158,7 @@ $ ls
 
 def test():
     import io
+    import re
 
     result = run(io.StringIO(test_input), part_2=False)
     a_size = 29116 + 2557 + 62596 + 584
@@ -201,3 +182,10 @@ def test():
     )
     expected_path = "/a"
     assert path == expected_path, (path, expected_path)
+    fs = tree_acc(
+        parse_terminal(io.StringIO(test_input)), identity, sum, Tree=Dir, Leaf=File
+    )
+    expected_size = sum(map(int, re.findall(r"\d+", test_input)))
+    file_size = sum(s.data for _, s in dfs(fs) if isinstance(s, Leaf))
+    assert file_size == expected_size, (file_size, expected_size)
+    assert fs.data == expected_size
