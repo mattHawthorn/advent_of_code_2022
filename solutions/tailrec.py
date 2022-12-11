@@ -4,7 +4,7 @@ from inspect import Signature, signature
 from itertools import chain, count, islice
 from operator import itemgetter
 from types import CodeType, FunctionType
-from typing import Callable, Iterable, Iterator, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, Iterable, Iterator, List, Optional, Sequence, Tuple
 from warnings import warn
 
 RETURN_OPS = {name for name in dis.opname if name.startswith("RETURN_")}
@@ -127,16 +127,22 @@ def transform_tail_call(
     sig: Signature,
     code: CodeType,
     consts: Optional[Tuple] = None,
-) -> Tuple[Sequence[dis.Instruction], Tuple]:
+) -> Tuple[Sequence[dis.Instruction], Tuple, Dict[int, int]]:
     # remove function load at beginning of sequence, call and return from end, and append
     call = instructions[-2]
     nargs = call.argval
     if call.opname == "CALL_FUNCTION":
         new_instructions = instructions[1:-2]
+        old_ix_to_new_ix = dict(
+            zip(range(1, len(instructions) - 2), range(len(new_instructions)))
+        )
         args = range(nargs)
         kw = {}
     elif call.opname == "CALL_FUNCTION_KW":
         new_instructions = instructions[1:-3]
+        old_ix_to_new_ix = dict(
+            zip(range(1, len(instructions) - 3), range(len(new_instructions)))
+        )
         kw_names = instructions[-3].argval
         args = range(nargs - len(kw_names))
         kw = {k: i for i, k in enumerate(kw_names, nargs - len(kw_names))}
@@ -193,6 +199,7 @@ def transform_tail_call(
                 is_jump_target=True,
             )
         )
+
     for name, value in defaults.items():
         if value not in new_consts:
             new_consts.append(value)
@@ -220,6 +227,7 @@ def transform_tail_call(
                 is_jump_target=True,
             )
         )
+
     new_instructions.append(
         dis.Instruction(
             opname=JUMP_ABS_OP,
@@ -233,26 +241,54 @@ def transform_tail_call(
         )
     )
 
-    return new_instructions, tuple(new_consts)
+    return new_instructions, tuple(new_consts), old_ix_to_new_ix
 
 
-def _fix_offsets(
-    instructions: Iterable[dis.Instruction], start: int = 0
+def _fix_offsets_and_jumps(
+    instructions: Iterable[dis.Instruction],
+    old_ix_to_new_ix: Dict[int, int],
+    start: int = 0,
 ) -> Iterator[dis.Instruction]:
+    new_jump_targets = set()
+    new_jump_ixs = set()
     for offset, instr in zip(count(start, BYTECODE_SIZE), instructions):
-        if instr.offset == offset:
-            yield instr
+        arg: Optional[int]
+        argval: Optional[int]
+        if instr.opname.startswith("JUMP_") and instr.arg is not None:
+            # fix up jump targets
+            old_target = instr.arg
+            new_target = old_ix_to_new_ix[old_target // BYTECODE_SIZE] * BYTECODE_SIZE
+            print(f"Move jump target from {old_target} to {new_target}")
+            if new_target >= 2 << 8:
+                raise ValueError(
+                    "Found new jump target exceeding 1-byte size after tail-call optimization; "
+                    "this is not currently supported"
+                )
+            new_jump_ixs.add(new_target)
+            arg = argval = new_target
         else:
-            yield dis.Instruction(
-                opname=instr.opname,
-                opcode=instr.opcode,
-                arg=instr.arg,
-                argval=instr.argval,
-                argrepr=instr.argrepr,
-                offset=offset,
-                starts_line=instr.starts_line,
-                is_jump_target=instr.is_jump_target,
-            )
+            arg = instr.arg
+            argval = instr.argval
+
+        if instr.is_jump_target:
+            new_jump_targets.add(offset)
+
+        yield dis.Instruction(
+            opname=instr.opname,
+            opcode=instr.opcode,
+            arg=arg,
+            argval=argval,
+            argrepr=instr.argrepr,
+            offset=offset,
+            starts_line=instr.starts_line,
+            is_jump_target=instr.is_jump_target,
+        )
+
+    if not new_jump_ixs.issubset(new_jump_targets):
+        warn(
+            "In tail call optimization, new jump offsets were generated that are not explicitly "
+            f"marked as jump targets: {new_jump_ixs.difference(new_jump_targets)}"
+        )
 
 
 def transform_tail_calls(
@@ -262,18 +298,34 @@ def transform_tail_calls(
     if not recursive_spans:
         return instructions, code.co_consts, False
 
-    new_code = []
+    new_code: List[dis.Instruction] = []
+    old_ix_to_new_ix: Dict[int, int] = {}
     new_consts = code.co_consts
     prior_stop = 0
 
     for start, stop in recursive_spans:
+        current_len = len(new_code)
         new_code.extend(instructions[prior_stop:start])
+        old_ix_to_new_ix.update(
+            (prior_stop + i, current_len + i) for i in range(start - prior_stop)
+        )
+
         tail_call = instructions[start:stop]
-        jump, new_consts = transform_tail_call(tail_call, sig, code, new_consts)
+        jump, new_consts, old_ix_to_new_ix_ = transform_tail_call(
+            tail_call, sig, code, new_consts
+        )
+        current_len = len(new_code)
         new_code.extend(jump)
+        old_ix_to_new_ix.update(
+            (start + i, current_len + j) for i, j in old_ix_to_new_ix_.items()
+        )
         prior_stop = stop
 
+    current_len = len(new_code)
     new_code.extend(instructions[prior_stop:])
+    old_ix_to_new_ix.update(
+        (prior_stop + i, current_len + i) for i in range(len(instructions) - prior_stop)
+    )
     first = new_code[0]
     new_code[0] = dis.Instruction(
         opname=first.opname,
@@ -285,7 +337,7 @@ def transform_tail_calls(
         starts_line=first.starts_line,
         is_jump_target=True,
     )
-    return list(_fix_offsets(new_code)), new_consts, True
+    return list(_fix_offsets_and_jumps(new_code, old_ix_to_new_ix)), new_consts, True
 
 
 def assemble(instructions: Iterable[dis.Instruction]) -> bytes:
