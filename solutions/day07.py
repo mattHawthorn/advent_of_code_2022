@@ -67,21 +67,36 @@ def parse_terminal(f: IO[str]) -> File:
             cmd, maybe_name = parse_command(line)
             if cmd == LS:
                 state = READ_OUTPUT
+                print_("read output")
             elif cmd == CD:
                 state = READ_COMMAND
                 assert maybe_name is not None
                 if maybe_name == PARENT:
                     assert current_tree.parent is not None
+                    print_(
+                        f"move up to {current_tree.parent.id}/ from {current_tree.id}/"
+                    )
                     current_tree = current_tree.parent
                 else:
-                    sub_tree = current_tree.children.get(maybe_name) or File(
-                        maybe_name, Stat(True, 0), {}, current_tree
-                    )
+                    print_(f"move down to {maybe_name}/ from {current_tree.id}/")
+                    if maybe_name in current_tree.children:
+                        sub_tree = current_tree.children[maybe_name]
+                    else:
+                        sub_tree = current_tree.children[maybe_name] = Tree(
+                            maybe_name,
+                            Stat(True, 0),
+                            {},
+                            current_tree,
+                        )
                     assert sub_tree.data.is_dir
                     current_tree.children[maybe_name] = sub_tree
                     current_tree = sub_tree
         else:
             file_or_dir = parse_file_dir(line, current_tree)
+            print_(
+                f"add {'dir' if file_or_dir.data.is_dir else 'file'} {file_or_dir.id} "
+                f"to dir {current_tree.id}/"
+            )
             current_tree.children[file_or_dir.id] = file_or_dir
 
     assert len(filesystem.children) == 1
@@ -117,7 +132,7 @@ def run(
     capacity: int = 70000000,
     required: int = 30000000,
     part_2: bool = True,
-    verbose: bool = True,
+    verbose: bool = False,
 ) -> str:
     set_verbose(verbose)
     filesystem = parse_terminal(input_)
