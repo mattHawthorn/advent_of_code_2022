@@ -15,12 +15,12 @@ SIDE_EFFECT_OPS = RETURN_OPS | {
     or name.startswith("JUMP_")
     or name.startswith("YIELD_")
 }
+BYTECODE_SIZE = 2
 CALL_OPS = {"CALL_FUNCTION", "CALL_FUNCTION_KW"}
 BUILD_TUPLE_OP = "BUILD_TUPLE"
 BUILD_TUPLE_OPCODE = dis.opmap[BUILD_TUPLE_OP]
 UNPACK_SEQUENCE_OP = "UNPACK_SEQUENCE"
 UNPACK_SEQUENCE_OPCODE = dis.opmap[UNPACK_SEQUENCE_OP]
-BYTECODE_SIZE = 2
 STORE_FAST_OP = "STORE_FAST"
 STORE_FAST_OPCODE = dis.opmap[STORE_FAST_OP]
 POP_TOP_OP = "POP_TOP"
@@ -29,6 +29,8 @@ JUMP_ABS_OP = "JUMP_ABSOLUTE"
 JUMP_ABS_OPCODE = dis.opmap[JUMP_ABS_OP]
 LOAD_CONST_OP = "LOAD_CONST"
 LOAD_CONST_OPCODE = dis.opmap[LOAD_CONST_OP]
+NO_OP = "NOP"
+NO_OPCODE = dis.opmap[NO_OP]
 
 
 def tailrec(f: Callable) -> FunctionType:
@@ -132,16 +134,16 @@ def transform_tail_call(
     call = instructions[-2]
     nargs = call.argval
     if call.opname == "CALL_FUNCTION":
-        new_instructions = instructions[1:-2]
+        new_instructions = instructions[0:-2]
         old_ix_to_new_ix = dict(
-            zip(range(1, len(instructions) - 2), range(len(new_instructions)))
+            zip(range(0, len(instructions) - 2), range(len(new_instructions)))
         )
         args = range(nargs)
         kw = {}
     elif call.opname == "CALL_FUNCTION_KW":
-        new_instructions = instructions[1:-3]
+        new_instructions = instructions[0:-3]
         old_ix_to_new_ix = dict(
-            zip(range(1, len(instructions) - 3), range(len(new_instructions)))
+            zip(range(0, len(instructions) - 3), range(len(new_instructions)))
         )
         kw_names = instructions[-3].argval
         args = range(nargs - len(kw_names))
@@ -150,6 +152,19 @@ def transform_tail_call(
         raise ValueError(
             f"Unknown op where a function call was expected: {call.opname}"
         )
+
+    # Leave this in in place of the function load as a jump target e.g. in case of an if block
+    # where the return happens immediately
+    new_instructions[0] = dis.Instruction(
+        opname=NO_OP,
+        opcode=NO_OPCODE,
+        arg=0,
+        argval=0,
+        argrepr="",
+        offset=new_instructions[0].offset,
+        starts_line=new_instructions[0].starts_line,
+        is_jump_target=new_instructions[0].is_jump_target,
+    )
 
     new_consts = list(consts or code.co_consts)
     bound_args = sig.bind(*args, **kw)
@@ -254,11 +269,18 @@ def _fix_offsets_and_jumps(
     for offset, instr in zip(count(start, BYTECODE_SIZE), instructions):
         arg: Optional[int]
         argval: Optional[int]
-        if instr.opname.startswith("JUMP_") and instr.arg is not None:
+        if "JUMP" in instr.opname and instr.arg is not None:
             # fix up jump targets
             old_target = instr.arg
-            new_target = old_ix_to_new_ix[old_target // BYTECODE_SIZE] * BYTECODE_SIZE
-            print(f"Move jump target from {old_target} to {new_target}")
+            try:
+                new_target = (
+                    old_ix_to_new_ix[old_target // BYTECODE_SIZE] * BYTECODE_SIZE
+                )
+            except KeyError:
+                raise ValueError(
+                    f"Jump target {old_target} is missing after code reorganization"
+                )
+
             if new_target >= 2 << 8:
                 raise ValueError(
                     "Found new jump target exceeding 1-byte size after tail-call optimization; "
@@ -273,7 +295,7 @@ def _fix_offsets_and_jumps(
         if instr.is_jump_target:
             new_jump_targets.add(offset)
 
-        yield dis.Instruction(
+        i = dis.Instruction(
             opname=instr.opname,
             opcode=instr.opcode,
             arg=arg,
@@ -283,6 +305,7 @@ def _fix_offsets_and_jumps(
             starts_line=instr.starts_line,
             is_jump_target=instr.is_jump_target,
         )
+        yield i
 
     if not new_jump_ixs.issubset(new_jump_targets):
         warn(

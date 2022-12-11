@@ -19,12 +19,12 @@ def factorial(n: int, acc: int = 1, stack_height: int = 0) -> Tuple[int, int]:
 def recursive_function_overwrites_default(x: int, y: str, default: int = 0) -> int:
     s = str(x)
     length = len(y) // 2
-    if x > 30 or len(y) > 20:
-        return x + length + default
-    else:
+    if not (x > 30 or len(y) > 20):
         default = 1
         print("recurse")
         return recursive_function_overwrites_default(y=y + s, x=x + length + default)
+    else:
+        return x + length + default
 
 
 recursive_function_overwrites_default_tailrec = tailrec(
