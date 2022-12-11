@@ -71,6 +71,9 @@ class Tree(Generic[K, T]):
     children: Dict[K, "Tree[K, T]"]
     parent: Optional["Tree[K, T]"] = None
 
+    def __contains__(self, item: K):
+        return item in self.children
+
     def __iter__(self) -> Iterator["Tree[K, T]"]:
         return iter(self.children.values())
 
