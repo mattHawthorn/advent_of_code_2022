@@ -16,7 +16,8 @@ SIDE_EFFECT_OPS = RETURN_OPS | {
     or name.startswith("YIELD_")
 }
 BYTECODE_SIZE = 2
-CALL_OPS = {"CALL_FUNCTION", "CALL_FUNCTION_KW"}
+CALL_FUNCTION_OP, CALL_FUNCTION_KW_OP = "CALL_FUNCTION", "CALL_FUNCTION_KW"
+CALL_OPS = {CALL_FUNCTION_OP, CALL_FUNCTION_KW_OP}
 BUILD_TUPLE_OP = "BUILD_TUPLE"
 BUILD_TUPLE_OPCODE = dis.opmap[BUILD_TUPLE_OP]
 UNPACK_SEQUENCE_OP = "UNPACK_SEQUENCE"
@@ -133,14 +134,14 @@ def transform_tail_call(
     # remove function load at beginning of sequence, call and return from end, and append
     call = instructions[-2]
     nargs = call.argval
-    if call.opname == "CALL_FUNCTION":
+    if call.opname == CALL_FUNCTION_OP:
         new_instructions = instructions[0:-2]
         old_ix_to_new_ix = dict(
             zip(range(0, len(instructions) - 2), range(len(new_instructions)))
         )
         args = range(nargs)
         kw = {}
-    elif call.opname == "CALL_FUNCTION_KW":
+    elif call.opname == CALL_FUNCTION_KW_OP:
         new_instructions = instructions[0:-3]
         old_ix_to_new_ix = dict(
             zip(range(0, len(instructions) - 3), range(len(new_instructions)))
