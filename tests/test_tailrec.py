@@ -16,6 +16,22 @@ def factorial(n: int, acc: int = 1, stack_height: int = 0) -> Tuple[int, int]:
         return factorial(n - 1, acc * n, height)
 
 
+def recursive_function_overwrites_default(x: int, y: str, default: int = 0) -> int:
+    s = str(x)
+    length = len(y)
+    if x > 30 or len(y) > 20:
+        return x + length + default
+    else:
+        default = 2
+        print("recurse")
+        return recursive_function_overwrites_default(y=y + s, x=x + length)
+
+
+recursive_function_overwrites_default_tailrec = tailrec(
+    recursive_function_overwrites_default
+)
+
+
 @pytest.mark.parametrize(
     "n",
     range(20),
@@ -26,3 +42,15 @@ def test_fact(n: int):
     actual, max_stack_height = factorial(n)
     assert actual == expected
     assert max_stack_height <= stack_height + 2
+
+
+@pytest.mark.parametrize("x, y", [(1, "foo"), (2, "asdf"), (3, "QWERTY")])
+def test_recursive_function_overwrites_default(x: int, y: str):
+    assert (
+        recursive_function_overwrites_default
+        is not recursive_function_overwrites_default_tailrec
+    )
+    expected = recursive_function_overwrites_default(x, y)
+    print(expected)
+    actual = recursive_function_overwrites_default_tailrec(x, y)
+    assert actual == expected
