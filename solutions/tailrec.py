@@ -98,7 +98,7 @@ def recursive_call_span(
                 if next_.opname in RETURN_OPS:
                     return j
                 else:
-                    return None
+                    state = seek_call
             else:
                 return None
         else:
