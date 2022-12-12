@@ -1,12 +1,14 @@
 import sys
+from collections import defaultdict
 from dataclasses import dataclass
 from functools import partial, reduce
 from heapq import heappop, heappush
-from itertools import chain, islice, product, repeat, takewhile
-from operator import add, is_not, itemgetter
+from itertools import chain, islice, product, takewhile
+from operator import is_not
 from typing import (
     Any,
     Callable,
+    Collection,
     Dict,
     Generic,
     Hashable,
@@ -14,6 +16,7 @@ from typing import (
     Iterator,
     List,
     MutableMapping,
+    NamedTuple,
     Optional,
     Set,
     Tuple,
@@ -59,8 +62,14 @@ class Inf(int):
     def __gt__(self, other):
         return not isinstance(other, Inf)
 
+    def __add__(self, other):
+        return Inf()
+
 
 # Functional
+
+
+is_not_null = partial(is_not, None)
 
 
 def identity(x: T) -> T:
@@ -89,6 +98,13 @@ def zip_with(f: Callable[[T], U], it: Iterable[T]) -> Iterator[Tuple[T, U]]:
         yield i, f(i)
 
 
+def iterate(f: Callable[[T], T], initial: T) -> Iterator[T]:
+    value = initial
+    while True:
+        yield value
+        value = f(value)
+
+
 def chunked(n: int, it: Iterable[T]) -> Iterator[List[T]]:
     return iter(lambda: list(islice(it, n)), [])
 
@@ -98,13 +114,30 @@ def first(it: Iterable[T]) -> T:
 
 
 def nonnull_head(it: Iterable[Optional[T]]) -> List[T]:
-    return list(takewhile(partial(is_not, None), it))  # type: ignore
+    return list(takewhile(is_not_null, it))  # type: ignore
 
 
 # Data Structures
 
 Grid = List[List[T]]
 GridCoordinates = Tuple[int, int]
+
+
+class HeapItem(NamedTuple, Generic[K, T]):
+    key: K
+    value: T
+
+    def __lt__(self, other):
+        return self.value < other.value
+
+    def __gt__(self, other):
+        return self.value > other.value
+
+    def __le__(self, other):
+        return self.value <= other.value
+
+    def __ge__(self, other):
+        return self.value >= other.value
 
 
 @dataclass
@@ -124,9 +157,7 @@ class Tree(Generic[K, T]):
 TreePath = Tuple[K, ...]
 
 
-def dfs(
-    tree: Tree[K, T], path: TreePath[K] = ()
-) -> Iterator[Tuple[TreePath[K], Tree[K, T]]]:
+def dfs(tree: Tree[K, T], path: TreePath[K] = ()) -> Iterator[Tuple[TreePath[K], Tree[K, T]]]:
     path = path or (tree.id,)
     yield path, tree
     if isinstance(tree, Tree):
@@ -150,16 +181,24 @@ Edge = Tuple[K, K]
 WeightedEdge = Tuple[Edge[K], int]
 
 
-def edges(graph: WeightedDiGraph[K]) -> Iterator[WeightedEdge[K]]:
+def all_edges(graph: WeightedDiGraph[K]) -> Iterator[WeightedEdge[K]]:
     return (((e, f), w) for e, neighbors in graph.items() for f, w in neighbors.items())
 
 
+def all_nodes(graph: WeightedDiGraph) -> Iterator[K]:
+    return chain(graph, chain.from_iterable(graph.values()))
+
+
 def n_nodes(graph: WeightedDiGraph) -> int:
-    return len(set(chain(graph, chain.from_iterable(graph.values()))))
+    return len(set(all_nodes(graph)))
 
 
 def n_edges(graph: WeightedDiGraph) -> int:
     return sum(map(len, graph.values()))
+
+
+def reverse_graph(graph: WeightedDiGraph[K]) -> WeightedDiGraph[K]:
+    return weighted_edges_to_graph(((f, e), w) for (e, f), w in all_edges(graph))
 
 
 def edges_to_graph_with_weight(
@@ -175,9 +214,7 @@ def weighted_edges_to_graph(edges: Iterable[WeightedEdge[K]]) -> WeightedDiGraph
     return reduce(add_weighted_edge, edges, graph)
 
 
-def add_weighted_edge(
-    graph: WeightedDiGraph[K], edge: WeightedEdge[K]
-) -> WeightedDiGraph[K]:
+def add_weighted_edge(graph: WeightedDiGraph[K], edge: WeightedEdge[K]) -> WeightedDiGraph[K]:
     (head, tail), weight = edge
     neighbors = graph.get(head)
     if neighbors is None:
@@ -213,48 +250,69 @@ def grid_to_graph(
     return edges_to_graph_with_weight(weight_fn, candidate_edges)
 
 
-def djikstra(
-    graph: WeightedDiGraph[K], start: K, end: K
-) -> Tuple[Optional[List[K]], int]:
-    unvisited: Set[K] = set(graph)
-    distances: Dict[K, int] = dict(zip(graph, repeat(Inf())))
-    distances[start] = 0
-    min_dist_heap: List[Tuple[int, K]] = []
-    predecessors: Dict[K, K] = {}
+def djikstra(graph: WeightedDiGraph[K], start: K, end: K) -> Tuple[List[K], int]:
+    """Return shortest path (if any) from node `start` to node `end`, and the total weight
+    of the path"""
+    return DjikstraState(graph, start, [end]).shortest_path(end)
 
-    def update_dists(node_dists: Iterable[Tuple[K, int]], node: K):
+
+def djikstra_all(
+    graph: WeightedDiGraph[K], start: K, ends: Collection[K] = frozenset()
+) -> Iterator[Tuple[List[K], int]]:
+    """Return all shortest paths from node `start` to each node in `ends` (or the whole graph
+    if this is empty)"""
+    state = DjikstraState(graph, start, ends)
+    for end in ends or graph:
+        yield state.shortest_path(end)
+
+
+class DjikstraState(Generic[K]):
+    def __init__(self, graph: WeightedDiGraph[K], start: K, ends: Collection[K] = frozenset()):
+        self.graph = graph
+        self.start = start
+        self.ends = set(ends)
+        self.visited_ends: Set[K] = set()
+        self.visited: Set[K] = set()
+        self.distances: Dict[K, int] = defaultdict(Inf)
+        self.min_dist_heap: List[HeapItem[K, int]] = []
+        self.predecessors: Dict[K, K] = {}
+        self.distances[start] = 0
+        self.accumulate_shortest_paths()
+
+    def update_dists(self, node_dists: Iterable[Tuple[K, int]], node: K):
         for n, dist in node_dists:
-            if dist < distances[n]:
-                distances[n] = dist
-                predecessors[n] = node
-                heappush(min_dist_heap, (dist, n))
+            if dist < self.distances[n]:
+                self.distances[n] = dist
+                self.predecessors[n] = node
+                heappush(self.min_dist_heap, HeapItem(n, dist))
 
-    def explore(node: K) -> Optional[K]:
-        dist = distances[node]
-        nbrs = [(n, dist) for n, dist in graph[node].items() if n in unvisited]
-        nbr_dists = map(partial(add, dist), map(itemgetter(1), nbrs))
-        new_dists = zip(map(itemgetter(0), nbrs), nbr_dists)
-        update_dists(new_dists, node)
-        unvisited.remove(node)
-        if min_dist_heap:
-            return heappop(min_dist_heap)[1]
+    def next_candidate_node(self, node: K) -> Optional[K]:
+        dist = self.distances[node]
+        nbrs = self.graph.get(node, {}).items()
+        new_dists = ((n, dist + d) for n, d in nbrs if n not in self.visited)
+        self.update_dists(new_dists, node)
+        self.visited.add(node)
+        return heappop(self.min_dist_heap).key if self.min_dist_heap else None
+
+    def distance(self, end: K) -> int:
+        return self.distances[end]
+
+    def shortest_path(self, end: K) -> Tuple[List[K], int]:
+        if end not in self.distances:
+            return [], Inf()
         else:
-            return None
+            predecessor = self.predecessors.get
+            reverse_path = list(takewhile(is_not_null, iterate(predecessor, end)))  # type: ignore
+            return list(reversed(reverse_path)), self.distances[end]
 
-    node: Optional[K] = start
-    while node != end:
-        if node is None:
-            return None, Inf()
-        node = explore(node)
-
-    path = []
-    node = end
-    while node != start:
-        path.append(node)
-        node = predecessors[node]
-    path.append(node)
-
-    return list(reversed(path)), distances[end]
+    def accumulate_shortest_paths(self):
+        for node in iterate(self.next_candidate_node, self.start):
+            if node is None:
+                return
+            elif node in self.ends:
+                self.visited_ends.add(node)
+                if len(self.visited_ends) == len(self.ends):
+                    return
 
 
 # I/O
