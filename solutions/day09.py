@@ -1,5 +1,6 @@
+from itertools import accumulate
 from operator import itemgetter
-from typing import IO, Dict, Iterable, Iterator, NewType, Tuple, cast
+from typing import IO, Dict, Iterable, Iterator, List, NewType, Tuple, cast
 
 from .util import print_, set_verbose
 
@@ -9,7 +10,7 @@ Coord = NewType("Coord", int)
 Instruction = Tuple[Direction, Distance]
 Position = Tuple[Coord, Coord]
 Vector = Tuple[Distance, Distance]
-State = Tuple[Position, Position]
+State = List[Position]
 
 R, L, U, D = Direction("R"), Direction("L"), Direction("U"), Direction("D")
 STEP_VECTORS = cast(
@@ -46,14 +47,19 @@ def catch_up(head: Position, tail: Position) -> Position:
         return move(tail, step)
 
 
+def catch_up_all(head: Position, tail: State) -> State:
+    return list(accumulate(tail, catch_up, initial=head))
+
+
 def transition(initial: State, instruction: Instruction) -> Iterator[State]:
     direction, distance = instruction
     step = STEP_VECTORS[direction]
-    head, tail = initial
+    state = initial
     for _ in range(distance):
+        head, tail = state[0], state[1:]
         head = move(head, step)
-        tail = catch_up(head, tail)
-        yield head, tail
+        state = catch_up_all(head, tail)
+        yield state
 
 
 def all_transitions(
@@ -69,12 +75,12 @@ def all_transitions(
         initial = state
 
 
-def run(input_: IO[str], verbose: bool = False):
+def run(input_: IO[str], n: int = 10, verbose: bool = False):
     set_verbose(verbose)
     instructions = list(map(parse_instruction, input_))
-    initial = (Coord(0), Coord(0)), (Coord(0), Coord(0))
+    initial = [(Coord(0), Coord(0))] * n
     states = all_transitions(initial, instructions)
-    return len(set(map(itemgetter(1), states)))
+    return len(set(map(itemgetter(-1), states)))
 
 
 test_input = """R 4
@@ -90,6 +96,6 @@ R 2"""
 def test():
     import io
 
-    actual = run(io.StringIO(test_input))
+    actual = run(io.StringIO(test_input), n=2, verbose=True)
     expected = 13
     assert actual == expected, (actual, expected)
