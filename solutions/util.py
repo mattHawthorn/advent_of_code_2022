@@ -17,12 +17,31 @@ from typing import (
     TypeVar,
 )
 
+from .tailrec import tailrec
+
 VERBOSE = False
 
 K = TypeVar("K", bound=Hashable)
 T = TypeVar("T")
 U = TypeVar("U")
 V = TypeVar("V")
+
+
+# Math
+
+
+@tailrec
+def gcd(m, n):
+    # Euclid
+    larger, smaller = (m, n) if m > n else (n, m)
+    if smaller == 0:
+        return larger
+    _, rem = divmod(larger, smaller)
+    return gcd(smaller, rem)
+
+
+def lcm(a: int, b: int) -> int:
+    return a * b // gcd(a, b)
 
 
 # Functional
