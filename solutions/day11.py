@@ -96,12 +96,11 @@ def rsub(operand: WorryLevel, value: WorryLevel):
 def play_keepaway(
     monkeys: List[Monkey], rounds: int, worry_reduction: int = 1
 ) -> List[int]:
-    active_monkeys = islice(cycle(enumerate(monkeys)), len(monkeys) * rounds)
     total_modulus = reduce(lcm, (m.modulus for m in monkeys))
     indexed_monkeys = {m.id_: m for m in monkeys}
     throw_counts = {m.id_: 0 for m in monkeys}
+    active_monkeys = islice(cycle(enumerate(monkeys)), len(monkeys) * rounds)
     for ix, monkey in active_monkeys:
-        # print_(f"Monkey {monkey.id_} has {len(monkey.items)} items")
         throw_counts[monkey.id_] += len(monkey.items)
         while monkey.items:
             initial_worry_level = monkey.items.pop()
@@ -115,9 +114,6 @@ def play_keepaway(
                 if new_worry_level % monkey.modulus == 0
                 else monkey.if_false
             )
-            # print_(
-            #     f"  throw {initial_worry_level} (now {new_worry_level}) to monkey {to_monkey_id}"
-            # )
             to_monkey = indexed_monkeys[to_monkey_id]
             to_monkey.items.append(new_worry_level)
 
