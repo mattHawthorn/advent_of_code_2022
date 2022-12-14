@@ -55,9 +55,8 @@ def _read_value(chars: Iterator[str]) -> Tuple[Optional[Packet], Optional[str]]:
         raise ValueError(first)
 
 
-def read_value(s: str) -> Packet:
+def read_value(s: str) -> Optional[Packet]:
     packet = _read_value(iter(s.strip()))[0]
-    assert packet is not None
     return packet
 
 
