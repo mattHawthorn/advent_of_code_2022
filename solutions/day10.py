@@ -44,6 +44,7 @@ def pixel_activation(crt_position: int, state: State) -> bool:
 
 def terminal_output(
     states: Iterable[State],
+    screen_height: int = 6,
     screen_width: int = 40,
     pixel_values: Tuple[str, str] = PIXEL_STATES,
 ) -> str:
@@ -51,7 +52,7 @@ def terminal_output(
     pixel_activations = starmap(pixel_activation, zip(pixel_position, states))
     pixel_values_ = map(pixel_values.__getitem__, pixel_activations)
     lines = map("".join, chunked(screen_width, pixel_values_))
-    return "\n".join(lines)
+    return "\n".join(islice(lines, screen_height))
 
 
 def run(
@@ -101,6 +102,8 @@ expected_output = """
 def test():
     import io
 
-    actual = run(io.StringIO(test_input))
+    actual = int(run(io.StringIO(test_input), part_2=False))
     expected = 13140
     assert actual == expected, (actual, expected)
+    actual_ = run(io.StringIO(test_input), part_2=True, off=".")
+    assert actual_ == expected_output, "\n\n".join(("", actual_, expected_output))
