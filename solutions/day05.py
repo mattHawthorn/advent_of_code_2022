@@ -2,7 +2,7 @@ from functools import reduce
 from itertools import takewhile, zip_longest
 from typing import IO, List, NamedTuple, Optional
 
-from .util import T, nonnull_head
+from .util import T, compose, nonnull_head
 
 Stacks = List[List[T]]
 
@@ -28,7 +28,7 @@ def parse_crates(input_: IO[str]) -> Stacks[str]:
     crate_rows = list(map(parse_crate_row, header))
     from_the_bottom = reversed(crate_rows)
     transposed = zip_longest(*from_the_bottom, fillvalue=None)
-    crate_columns: Stacks[str] = list(map(nonnull_head, transposed))  # type: ignore
+    crate_columns: Stacks[str] = list(map(compose(nonnull_head, list), transposed))  # type: ignore
     return crate_columns
 
 

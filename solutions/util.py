@@ -3,10 +3,9 @@ from collections import defaultdict
 from dataclasses import dataclass
 from functools import partial, reduce
 from heapq import heappop, heappush
-from itertools import chain, islice, product, takewhile
-from operator import is_not
+from itertools import chain, islice, product
+from operator import is_, is_not, not_
 from typing import (
-    Any,
     Callable,
     Collection,
     Dict,
@@ -68,8 +67,14 @@ class Inf(int):
 
 # Functional
 
+Predicate = Callable[[T], bool]
 
-is_not_null = partial(is_not, None)
+is_not_null: Predicate = partial(is_not, None)
+is_null: Predicate = partial(is_, None)
+
+
+def invert(f: Predicate[T]) -> Predicate[T]:
+    return compose(f, not_)
 
 
 def identity(x: T) -> T:
@@ -80,9 +85,9 @@ def call(x: T, f: Callable[[T], U]) -> U:
     return f(x)
 
 
-def compose(f: Callable[[T], Any], *fs: Callable[[Any], V]) -> Callable[[T], V]:
-    """Compose multiple functions, chaining output to input from left to right"""
-    return partial(reduce, call, (f, *fs))  # type: ignore
+def compose(f: Callable[[T], U], g: Callable[[U], V]) -> Callable[[T], V]:
+    """Compose 2 functions, chaining output to input from left to right"""
+    return lambda *x: g(f(*x))
 
 
 def swap(t: Tuple[T, U]) -> Tuple[U, T]:
@@ -113,8 +118,19 @@ def first(it: Iterable[T]) -> T:
     return next(iter(it))
 
 
-def nonnull_head(it: Iterable[Optional[T]]) -> List[T]:
-    return list(takewhile(is_not_null, it))  # type: ignore
+def nonnull_head(it: Iterable[Optional[T]]) -> Iterator[T]:
+    for i in it:
+        if i is None:
+            break
+        yield i
+
+
+def take_until(f: Predicate, it: Iterable[T]) -> Iterator[T]:
+    """like `takewhile` but yields the final value which fails the predicate"""
+    for i in it:
+        yield i
+        if f(i):
+            break
 
 
 # Data Structures
@@ -302,7 +318,7 @@ class DjikstraState(Generic[K]):
             return [], Inf()
         else:
             predecessor = self.predecessors.get
-            reverse_path = list(takewhile(is_not_null, iterate(predecessor, end)))  # type: ignore
+            reverse_path = list(nonnull_head(iterate(predecessor, end)))  # type: ignore
             return list(reversed(reverse_path)), self.distances[end]
 
     def accumulate_shortest_paths(self):
