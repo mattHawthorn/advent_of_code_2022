@@ -133,6 +133,30 @@ def take_until(f: Predicate, it: Iterable[T]) -> Iterator[T]:
             break
 
 
+def reduce_while(
+    condition: Callable[[T, T], bool],
+    agg: Callable[[T, T], T],
+    it: Iterable[T],
+    accumulator: Optional[T] = None,
+) -> Iterable[T]:
+    """Reduce an iterator in groups connected by a pairwise predicate"""
+    it = iter(it)
+    next_ = next(it, None)
+    if accumulator is None:
+        if next_ is not None:
+            yield from reduce_while(condition, agg, it, next_)
+    else:
+        if next_ is None:
+            yield accumulator
+        else:
+            if condition(accumulator, next_):
+                accumulator = agg(accumulator, next_)
+            else:
+                yield accumulator
+                accumulator = next_
+            yield from reduce_while(condition, agg, it, accumulator)
+
+
 # Data Structures
 
 Grid = List[List[T]]
