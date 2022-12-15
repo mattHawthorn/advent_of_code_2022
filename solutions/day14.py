@@ -117,8 +117,8 @@ def format_grid(grid: SparseHalfGrid) -> str:
     nrows = grid.n_rows
     xmin = grid.x_min
     xmax = grid.x_max
-    swap: Callable[[Tuple[int, int]], Tuple[int, int]]
-    coords = map(swap, product(range(nrows), range(xmin, xmax + 1)))
+    swap_: Callable[[Tuple[int, int]], Tuple[int, int]] = swap
+    coords = map(swap_, product(range(nrows), range(xmin, xmax + 1)))
     values = (v or AIR for v in map(grid.get, coords))
     rows = chunked(xmax + 1 - xmin, values)
     return "\n".join(map("".join, rows))
