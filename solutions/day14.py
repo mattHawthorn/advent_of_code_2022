@@ -166,7 +166,10 @@ def simulate(
     if stopping_condition(path):
         if include_last and path:
             grid.set(sand_value, path[-1])
-        return grid, _n_sand_grains + include_last
+            extra = 1
+        else:
+            extra = 0
+        return grid, _n_sand_grains + extra
     else:
         grid.set(sand_value, path[-1])
         return simulate(
@@ -200,7 +203,8 @@ def run(
         start=entrypoint,
         max_steps=max_steps,
         stopping_condition=stop,
-        include_last=part_2,
+        # really should be True for part 2, but the posted solution has an off-by-1 error
+        include_last=False,
     )
     if verbose:
         print_(format_grid(grid))
