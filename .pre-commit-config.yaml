@@ -1,4 +1,5 @@
 ---
+exclude: inputs/.*
 repos:
   - repo: https://github.com/timothycrosley/isort
     rev: 5.10.1
