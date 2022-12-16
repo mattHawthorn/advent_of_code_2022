@@ -70,7 +70,8 @@ def interval_size(interval: Interval) -> int:
 
 
 def interval_graph_components(intervals: Iterable[Interval]) -> Iterable[Interval]:
-    """Comonents of an inteval graph with overlap as the edge predicate, as min, max intervals"""
+    """Comonents of an inteval graph with overlap as the edge predicate, as min, max intervals.
+    Correctness is ensured via a preliminary sort so this is _not_ a lazy streaming operation"""
     return reduce_while(is_overlapping, coalesce_intervals, sorted(intervals))
 
 
