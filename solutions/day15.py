@@ -1,9 +1,13 @@
 import re
+from functools import partial
+from itertools import chain, combinations, starmap
 from typing import IO, Iterable, List, Optional, Tuple
 
 from .util import GridCoordinates, reduce_while
 
 Interval = Tuple[int, int]
+# slope, y intercept
+Line = Tuple[int, int]
 
 line_re = re.compile(
     r"Sensor at x=(?P<sensor_x>-?\d+), y=(?P<sensor_y>-?\d+): "
@@ -70,12 +74,67 @@ def interval_graph_components(intervals: Iterable[Interval]) -> Iterable[Interva
     return reduce_while(is_overlapping, coalesce_intervals, sorted(intervals))
 
 
-def run(input_: IO[str], row: int = 2000000, part_2: bool = True) -> int:
+def bounding_lines(sensor: GridCoordinates, beacon: GridCoordinates) -> List[Line]:
+    """Lines bounding the region within the manhattan distance from `sensor` to `beacon` of `sensor`
+    (non-inclusive)"""
+    dist = manhattan_distance(sensor, beacon)
+    x, y = sensor
+    lo = y - dist - 1
+    hi = y + dist + 1
+    return [(1, hi - x), (1, lo - x), (-1, lo + x), (-1, hi + x)]
+
+
+def intersection_point(line1: Line, line2: Line) -> Optional[GridCoordinates]:
+    slope1, y1 = line1
+    slope2, y2 = line2
+    if slope1 == slope2:
+        return None
+    else:
+        x = (y2 - y1) // (slope1 - slope2)
+        return x, x * slope1 + y1
+
+
+def outside_of_neighborhood(
+    point: GridCoordinates,
+    sensor: GridCoordinates,
+    beacon: GridCoordinates,
+) -> bool:
+    dist_to_beacon = manhattan_distance(sensor, beacon)
+    dist_to_point = manhattan_distance(sensor, point)
+    return dist_to_point > dist_to_beacon
+
+
+def inside_of_box(xmin: int, xmax: int, ymin: int, ymax: int, point: GridCoordinates) -> bool:
+    x, y = point
+    return xmin <= x <= xmax and ymin <= y <= ymax
+
+
+def run(
+    input_: IO[str],
+    row: int = 2000000,
+    xmin: int = 0,
+    ymin: int = 0,
+    xmax: int = 4000000,
+    ymax: int = 4000000,
+    part_2: bool = True,
+) -> int:
     sensors = parse_sensors(input_)
     beacons = {beacon for _, beacon in sensors}
     if part_2:
-        ...
-        return 0
+        all_lines = chain.from_iterable(starmap(bounding_lines, sensors))
+        intersections_ = starmap(intersection_point, combinations(all_lines, 2))
+        intersections = (point for point in intersections_ if point is not None)
+        candidate_intersections = list(
+            filter(partial(inside_of_box, xmin, xmax, ymin, ymax), intersections)
+        )
+        undetectable_intersections = set(
+            point
+            for point in candidate_intersections
+            if all(starmap(partial(outside_of_neighborhood, point), sensors))
+        )
+        assert len(undetectable_intersections) == 1
+        x, y = next(iter(undetectable_intersections))
+        return x * 4000000 + y
     else:
         intervals_ = (sensor_range_at_row(row, sensor, beacon) for sensor, beacon in sensors)
         intervals = (i for i in intervals_ if i is not None)
@@ -112,3 +171,6 @@ def test():
     actual = run(io.StringIO(test_input), row=10, part_2=False)
     expected = 26
     assert actual == expected, (actual, expected)
+    actual = run(io.StringIO(test_input), xmax=20, ymax=20, part_2=True)
+    expected = 56000011
+    assert actual == expected
