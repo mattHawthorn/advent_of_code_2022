@@ -3,9 +3,10 @@ from collections import defaultdict
 from dataclasses import dataclass
 from functools import partial, reduce
 from heapq import heappop, heappush
-from itertools import chain, islice, product
-from operator import is_, is_not, not_
+from itertools import accumulate, chain, islice, product
+from operator import and_, is_, is_not, not_
 from typing import (
+    AbstractSet,
     Callable,
     Collection,
     Dict,
@@ -62,7 +63,19 @@ class Inf(int):
         return not isinstance(other, Inf)
 
     def __add__(self, other):
-        return Inf()
+        return INF
+
+    def __radd__(self, other):
+        return INF
+
+    def __repr__(self):
+        return "Inf()"
+
+    def __str__(self):
+        return "+inf"
+
+
+INF = Inf()
 
 
 # Functional
@@ -155,6 +168,15 @@ def reduce_while(
                 yield accumulator
                 accumulator = next_
             yield from reduce_while(condition, agg, it, accumulator)
+
+
+# Miscellaneous
+
+
+def non_overlapping(sets: Iterable[AbstractSet]) -> bool:
+    intersections = accumulate(sets, and_)
+    next(intersections)
+    return not any(map(bool, intersections))
 
 
 # Data Structures
@@ -290,6 +312,19 @@ def grid_to_graph(
     return edges_to_graph_with_weight(weight_fn, candidate_edges)
 
 
+def induced_subgraph(g: WeightedDiGraph[K], nodes: Collection[K]):
+    return {
+        n: {m: w for m, w in neighbors.items() if m in nodes}
+        for n, neighbors in g.items()
+        if n in nodes
+    }
+
+
+def is_complete_graph(g: WeightedDiGraph[K]) -> bool:
+    n_nodes = len(set(all_nodes(g)))
+    return len(g) == n_nodes and all(len(nbrs) == n_nodes - 1 for nbrs in g.values())
+
+
 def djikstra(graph: WeightedDiGraph[K], start: K, end: K) -> Tuple[List[K], int]:
     """Return shortest path (if any) from node `start` to node `end`, and the total weight
     of the path"""
@@ -339,7 +374,7 @@ class DjikstraState(Generic[K]):
 
     def shortest_path(self, end: K) -> Tuple[List[K], int]:
         if end not in self.distances:
-            return [], Inf()
+            return [], INF
         else:
             predecessor = self.predecessors.get
             reverse_path = list(nonnull_head(iterate(predecessor, end)))  # type: ignore
@@ -353,6 +388,28 @@ class DjikstraState(Generic[K]):
                 self.visited_ends.add(node)
                 if len(self.visited_ends) == len(self.ends):
                     return
+
+
+def floyd_warshall(graph: WeightedDiGraph[K]) -> WeightedDiGraph[K]:
+    def dist(distances: WeightedDiGraph[K], node1: K, node2: K):
+        return 0 if node1 == node2 else distances.get(node1, {}).get(node2, INF)
+
+    def update_dist(distances: WeightedDiGraph[K], nodes: Tuple[K, K, K]) -> WeightedDiGraph[K]:
+        node1, node2, node3 = nodes
+        candidate_dist = dist(distances, node2, node1) + dist(distances, node1, node3)
+        current_dist = dist(distances, node2, node3)
+        if node2 != node3 and candidate_dist < current_dist and candidate_dist < INF:
+            if node2 in distances:
+                neighbors = distances[node2]
+            else:
+                neighbors = distances[node2] = {}
+            neighbors[node3] = candidate_dist
+        return distances
+
+    distances: WeightedDiGraph[K] = {node: dict(nbrs) for node, nbrs in graph.items()}
+    nodes: Set[K] = set(all_nodes(graph))
+    result = reduce(update_dist, product(nodes, nodes, nodes), distances)
+    return result
 
 
 # I/O
