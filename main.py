@@ -4,6 +4,7 @@ import sys
 from importlib import import_module
 from inspect import signature
 from pathlib import Path
+from time import perf_counter_ns
 from typing import IO, Protocol, TypeVar, Union
 
 from bourbaki.application.cli import CommandLineInterface, cli_spec  # type: ignore
@@ -71,7 +72,11 @@ class AOC2022:
         """
         problem = import_problem(day)
         input_ = get_input(day)
+        print(f"Running solution to day {day}...", file=sys.stderr)
+        tic = perf_counter_ns()
         solution = problem.run(input_, **args)
+        toc = perf_counter_ns()
+        print(f"Ran in {(toc - tic) / 1000000} ms", file=sys.stderr)
         return solution
 
     def test(self, day: int):
