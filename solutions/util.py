@@ -151,6 +151,10 @@ def take_until(f: Predicate, it: Iterable[T]) -> Iterator[T]:
             break
 
 
+def interleave(*its: Iterable[T]) -> Iterator[T]:
+    return chain.from_iterable(zip(*its))
+
+
 def reduce_while(
     condition: Callable[[T, T], bool],
     agg: Callable[[T, T], T],
@@ -198,7 +202,7 @@ def translate(step: Vector, coords: GridCoordinates) -> GridCoordinates:
     return x + x_step, y + y_step
 
 
-def translate_all(step: Vector, obj: Collection[GridCoordinates]) -> List[GridCoordinates]:
+def translate_all(step: Vector, obj: Sprite) -> Sprite:
     return list(map(partial(translate, step), obj))
 
 
