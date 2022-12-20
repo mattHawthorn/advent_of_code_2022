@@ -185,6 +185,43 @@ Grid = List[List[T]]
 GridCoordinates = Tuple[int, int]
 
 
+@dataclass
+class SparseGrid(Generic[T]):
+    grid: Dict[GridCoordinates, T]
+    x_min: Optional[int] = None
+    x_max: Optional[int] = None
+    y_min: Optional[int] = None
+    y_max: Optional[int] = None
+
+    @property
+    def n_rows(self) -> int:
+        return 0 if self.y_min is None or self.y_max is None else (self.y_max + 1 - self.y_min)
+
+    @property
+    def n_cols(self) -> int:
+        return 0 if self.x_min is None or self.x_max is None else (self.x_max + 1 - self.x_min)
+
+    def get(self, coord: GridCoordinates) -> Optional[T]:
+        return self.grid.get(coord, None)
+
+    def set(self, value: T, coord: GridCoordinates) -> "SparseGrid[T]":
+        x, y = coord
+        self.x_min = _min(self.x_min, x)
+        self.x_max = _max(self.x_max, x)
+        self.y_min = _min(self.y_min, y)
+        self.y_max = _max(self.y_max, y)
+        self.grid[x, y] = value
+        return self
+
+
+def _min(old: Optional[int], new: int) -> int:
+    return new if old is None else min(old, new)
+
+
+def _max(old: Optional[int], new: int) -> int:
+    return new if old is None else max(old, new)
+
+
 class HeapItem(NamedTuple, Generic[K, T]):
     key: K
     value: T

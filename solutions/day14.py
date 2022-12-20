@@ -1,13 +1,13 @@
-from dataclasses import dataclass
 from functools import partial, reduce
 from itertools import chain, islice, product, repeat
 from operator import itemgetter
-from typing import IO, Callable, Dict, Generic, Iterable, Iterator, List, Optional, Tuple, cast
+from typing import IO, Callable, Iterable, Iterator, List, Optional, Tuple, cast
 
 from .tailrec import tailrec
 from .util import (
     GridCoordinates,
     Predicate,
+    SparseGrid,
     T,
     chunked,
     compose,
@@ -25,34 +25,6 @@ AIR, ROCK, SAND = ".", "#", "o"
 DOWN: GridCoordinates = (0, 1)
 LEFT: GridCoordinates = (-1, 1)
 RIGHT: GridCoordinates = (1, 1)
-
-
-@dataclass
-class SparseHalfGrid(Generic[T]):
-    grid: Dict[GridCoordinates, T]
-    n_rows: int = 0
-
-    @property
-    def x_min(self) -> int:
-        return min(map(itemgetter(0), self.grid.keys()))
-
-    @property
-    def x_max(self) -> int:
-        return max(map(itemgetter(0), self.grid.keys()))
-
-    @property
-    def n_cols(self) -> int:
-        return self.x_max + 1 - self.x_min
-
-    def get(self, coord: GridCoordinates) -> Optional[T]:
-        return self.grid.get(coord, None)
-
-    def set(self, value: T, coord: GridCoordinates) -> "SparseHalfGrid[T]":
-        x, y = coord
-        if y >= self.n_rows:
-            self.n_rows = y + 1
-        self.grid[x, y] = value
-        return self
 
 
 # Parsing
@@ -85,40 +57,39 @@ def path_coords(path: CaveGridPath) -> Iterator[GridCoordinates]:
     return chain(chain.from_iterable(map(segment_coords, path, path[1:])), path[-1:])
 
 
-def set_value(value: T, grid: SparseHalfGrid[T], coord: GridCoordinates) -> SparseHalfGrid[T]:
+def set_value(value: T, grid: SparseGrid[T], coord: GridCoordinates) -> SparseGrid[T]:
     return grid.set(value, coord)
 
 
-def fill_path(value: T, grid: SparseHalfGrid[T], path: CaveGridPath) -> SparseHalfGrid[T]:
+def fill_path(value: T, grid: SparseGrid[T], path: CaveGridPath) -> SparseGrid[T]:
     coords = path_coords(path)
     fill_coord_ = cast(
-        Callable[[SparseHalfGrid[T], GridCoordinates], SparseHalfGrid[T]], partial(set_value, value)
+        Callable[[SparseGrid[T], GridCoordinates], SparseGrid[T]], partial(set_value, value)
     )
     return reduce(fill_coord_, coords, grid)
 
 
-def fill_paths(
-    value: T, grid: SparseHalfGrid[T], paths: Iterable[CaveGridPath]
-) -> SparseHalfGrid[T]:
+def fill_paths(value: T, grid: SparseGrid[T], paths: Iterable[CaveGridPath]) -> SparseGrid[T]:
     fill_path_ = partial(fill_path, value)
     return reduce(fill_path_, paths, grid)
 
 
-def parse_grid(input_: IO[str], value: str = ROCK) -> SparseHalfGrid[str]:
+def parse_grid(input_: IO[str], value: str = ROCK) -> SparseGrid[str]:
     paths = map(parse_path, input_)
-    grid = SparseHalfGrid[str]({}, 0)
+    grid = SparseGrid[str]({}, y_min=0)
     return fill_paths(value, grid, paths)
 
 
 # Output
 
 
-def format_grid(grid: SparseHalfGrid) -> str:
-    nrows = grid.n_rows
-    xmin = grid.x_min
-    xmax = grid.x_max
+def format_grid(grid: SparseGrid) -> str:
+    ymin = grid.y_min or 0
+    ymax = grid.y_max or 0
+    xmin = grid.x_min or 0
+    xmax = grid.x_max or 0
     swap_: Callable[[Tuple[int, int]], Tuple[int, int]] = swap
-    coords = map(swap_, product(range(nrows), range(xmin, xmax + 1)))
+    coords = map(swap_, product(range(ymin, ymax + 1), range(xmin, xmax + 1)))
     values = (v or AIR for v in map(grid.get, coords))
     rows = chunked(xmax + 1 - xmin, values)
     return "\n".join(map("".join, rows))
@@ -128,7 +99,7 @@ def format_grid(grid: SparseHalfGrid) -> str:
 
 
 def next_coord_and_value(
-    grid: SparseHalfGrid[T], current: GridCoordinates, step: GridCoordinates
+    grid: SparseGrid[T], current: GridCoordinates, step: GridCoordinates
 ) -> Tuple[GridCoordinates, Optional[T]]:
     x, y = current
     xstep, ystep = step
@@ -138,7 +109,7 @@ def next_coord_and_value(
 
 
 def sand_grain_next(
-    grid: SparseHalfGrid[T],
+    grid: SparseGrid[T],
     current_coord: GridCoordinates,
 ) -> Optional[GridCoordinates]:
     next_ = partial(next_coord_and_value, grid, current_coord)
@@ -147,21 +118,21 @@ def sand_grain_next(
     return next(acceptable_coords, None)
 
 
-def sand_grain_path(grid: SparseHalfGrid[T], start: GridCoordinates) -> Iterator[GridCoordinates]:
+def sand_grain_path(grid: SparseGrid[T], start: GridCoordinates) -> Iterator[GridCoordinates]:
     next_ = partial(sand_grain_next, grid)
     return nonnull_head(iterate(next_, start))
 
 
 @tailrec
 def simulate(
-    grid: SparseHalfGrid[T],
+    grid: SparseGrid[T],
     start: GridCoordinates,
     sand_value: T,
     max_steps: int,
     stopping_condition: Predicate[List[GridCoordinates]],
     include_last: bool = False,
     _n_sand_grains: int = 0,
-) -> Tuple[SparseHalfGrid[T], int]:
+) -> Tuple[SparseGrid[T], int]:
     path = list(islice(sand_grain_path(grid, start), max_steps))
     if stopping_condition(path):
         if include_last and path:
@@ -236,14 +207,17 @@ def test():
     expected = [(498, 4), (498, 5), (498, 6), (497, 6), (496, 6)]
     assert actual == expected, (actual, expected)
 
-    expected_grid = SparseHalfGrid(
+    expected_grid = SparseGrid(
         {
             (j, i): v
             for i, line in enumerate(test_grid.splitlines(keepends=False))
             for j, v in enumerate(line, 494)
             if v != AIR
         },
-        10,
+        x_min=494,
+        x_max=503,
+        y_min=0,
+        y_max=9,
     )
     actual_grid = parse_grid(io.StringIO(test_input))
     extra_actual = set(actual_grid.grid).difference(expected_grid.grid)
