@@ -233,6 +233,9 @@ class SparseGrid(Generic[T]):
         self.grid[x, y] = value
         return self
 
+    def set_all(self, value: T, coords: Iterable[GridCoordinates]) -> "SparseGrid[T]":
+        return reduce(lambda grid, coord: grid.set(value, coord), coords, self)
+
 
 def _min(old: Optional[int], new: int) -> int:
     return new if old is None else min(old, new)

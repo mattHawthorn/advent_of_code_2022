@@ -1,13 +1,14 @@
 from functools import partial, reduce
 from itertools import chain, islice, product, repeat
 from operator import itemgetter
-from typing import IO, Callable, Iterable, Iterator, List, Optional, Tuple, cast
+from typing import IO, Callable, Iterable, Iterator, List, Optional, Tuple
 
 from .tailrec import tailrec
 from .util import (
     GridCoordinates,
     Predicate,
     SparseGrid,
+    Sprite,
     T,
     chunked,
     compose,
@@ -20,7 +21,7 @@ from .util import (
     translate,
 )
 
-CaveGridPath = List[GridCoordinates]
+CaveGridPath = Sprite
 
 AIR, ROCK, SAND = ".", "#", "o"
 DOWN: GridCoordinates = (0, 1)
@@ -58,16 +59,9 @@ def path_coords(path: CaveGridPath) -> Iterator[GridCoordinates]:
     return chain(chain.from_iterable(map(segment_coords, path, path[1:])), path[-1:])
 
 
-def set_value(value: T, grid: SparseGrid[T], coord: GridCoordinates) -> SparseGrid[T]:
-    return grid.set(value, coord)
-
-
 def fill_path(value: T, grid: SparseGrid[T], path: CaveGridPath) -> SparseGrid[T]:
     coords = path_coords(path)
-    fill_coord_ = cast(
-        Callable[[SparseGrid[T], GridCoordinates], SparseGrid[T]], partial(set_value, value)
-    )
-    return reduce(fill_coord_, coords, grid)
+    return grid.set_all(value, coords)
 
 
 def fill_paths(value: T, grid: SparseGrid[T], paths: Iterable[CaveGridPath]) -> SparseGrid[T]:
