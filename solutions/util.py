@@ -37,6 +37,10 @@ V = TypeVar("V")
 # Math
 
 
+def sign(x: int) -> int:
+    return 0 if x == 0 else (1 if x > 0 else -1)
+
+
 @tailrec
 def gcd(m, n):
     # Euclid

@@ -2,7 +2,7 @@ from itertools import accumulate
 from operator import itemgetter
 from typing import IO, Dict, Iterable, Iterator, Tuple
 
-from .util import GridCoordinates, Sprite, Vector, print_, set_verbose
+from .util import GridCoordinates, Sprite, Vector, print_, set_verbose, sign, translate
 
 Direction = str
 Distance = int
@@ -17,14 +17,6 @@ def parse_instruction(line: str) -> Instruction:
     return Direction(direction), Distance(int(dist))
 
 
-def move(pos: GridCoordinates, vec: Vector) -> GridCoordinates:
-    return pos[0] + vec[0], pos[1] + vec[1]
-
-
-def sign(x: int) -> int:
-    return 0 if x == 0 else (1 if x > 0 else -1)
-
-
 def step_dist(distance: Distance) -> Distance:
     return Distance(min(abs(distance), 1) * sign(distance))
 
@@ -37,7 +29,7 @@ def catch_up(head: GridCoordinates, tail: GridCoordinates) -> GridCoordinates:
         return tail
     else:
         step = step_dist(vx), step_dist(vy)
-        return move(tail, step)
+        return translate(step, tail)
 
 
 def catch_up_all(head: GridCoordinates, tail: Sprite) -> Sprite:
@@ -50,7 +42,7 @@ def transition(initial: Sprite, instruction: Instruction) -> Iterator[Sprite]:
     state = initial
     for _ in range(distance):
         head, tail = state[0], state[1:]
-        head = move(head, step)
+        head = translate(step, head)
         state = catch_up_all(head, tail)
         yield state
 
