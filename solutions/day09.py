@@ -1,22 +1,15 @@
 from itertools import accumulate
 from operator import itemgetter
-from typing import IO, Dict, Iterable, Iterator, List, NewType, Tuple, cast
+from typing import IO, Dict, Iterable, Iterator, Tuple
 
-from .util import print_, set_verbose
+from .util import GridCoordinates, Sprite, Vector, print_, set_verbose
 
-Direction = NewType("Direction", str)
-Distance = NewType("Distance", int)
-Coord = NewType("Coord", int)
+Direction = str
+Distance = int
 Instruction = Tuple[Direction, Distance]
-Position = Tuple[Coord, Coord]
-Vector = Tuple[Distance, Distance]
-State = List[Position]
 
 R, L, U, D = Direction("R"), Direction("L"), Direction("U"), Direction("D")
-STEP_VECTORS = cast(
-    Dict[Direction, Vector],
-    {R: (1, 0), L: (-1, 0), U: (0, 1), D: (0, -1)},
-)
+STEP_VECTORS: Dict[Direction, Vector] = {R: (1, 0), L: (-1, 0), U: (0, 1), D: (0, -1)}
 
 
 def parse_instruction(line: str) -> Instruction:
@@ -24,8 +17,8 @@ def parse_instruction(line: str) -> Instruction:
     return Direction(direction), Distance(int(dist))
 
 
-def move(pos: Position, vec: Vector) -> Position:
-    return Coord(pos[0] + vec[0]), Coord(pos[1] + vec[1])
+def move(pos: GridCoordinates, vec: Vector) -> GridCoordinates:
+    return pos[0] + vec[0], pos[1] + vec[1]
 
 
 def sign(x: int) -> int:
@@ -36,7 +29,7 @@ def step_dist(distance: Distance) -> Distance:
     return Distance(min(abs(distance), 1) * sign(distance))
 
 
-def catch_up(head: Position, tail: Position) -> Position:
+def catch_up(head: GridCoordinates, tail: GridCoordinates) -> GridCoordinates:
     hx, hy = head
     tx, ty = tail
     vec = vx, vy = Distance(hx - tx), Distance(hy - ty)
@@ -47,11 +40,11 @@ def catch_up(head: Position, tail: Position) -> Position:
         return move(tail, step)
 
 
-def catch_up_all(head: Position, tail: State) -> State:
+def catch_up_all(head: GridCoordinates, tail: Sprite) -> Sprite:
     return list(accumulate(tail, catch_up, initial=head))
 
 
-def transition(initial: State, instruction: Instruction) -> Iterator[State]:
+def transition(initial: Sprite, instruction: Instruction) -> Iterator[Sprite]:
     direction, distance = instruction
     step = STEP_VECTORS[direction]
     state = initial
@@ -62,9 +55,7 @@ def transition(initial: State, instruction: Instruction) -> Iterator[State]:
         yield state
 
 
-def all_transitions(
-    initial: State, instructions: Iterable[Instruction]
-) -> Iterator[State]:
+def all_transitions(initial: Sprite, instructions: Iterable[Instruction]) -> Iterator[Sprite]:
     print_(initial)
     yield initial
     for instruction in instructions:
@@ -78,7 +69,7 @@ def all_transitions(
 def run(input_: IO[str], n: int = 10, verbose: bool = False):
     set_verbose(verbose)
     instructions = list(map(parse_instruction, input_))
-    initial = [(Coord(0), Coord(0))] * n
+    initial = [(0, 0)] * n
     states = all_transitions(initial, instructions)
     return len(set(map(itemgetter(-1), states)))
 

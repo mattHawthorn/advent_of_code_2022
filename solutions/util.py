@@ -18,6 +18,7 @@ from typing import (
     MutableMapping,
     NamedTuple,
     Optional,
+    Sequence,
     Set,
     Tuple,
     TypeVar,
@@ -183,6 +184,18 @@ def non_overlapping(sets: Iterable[AbstractSet]) -> bool:
 
 Grid = List[List[T]]
 GridCoordinates = Tuple[int, int]
+Vector = Tuple[int, int]
+Sprite = Sequence[GridCoordinates]
+
+
+def translate(step: Vector, coords: GridCoordinates) -> GridCoordinates:
+    x, y = coords
+    x_step, y_step = step
+    return x + x_step, y + y_step
+
+
+def translate_all(step: Vector, obj: Collection[GridCoordinates]) -> List[GridCoordinates]:
+    return list(map(partial(translate, step), obj))
 
 
 @dataclass
@@ -192,6 +205,9 @@ class SparseGrid(Generic[T]):
     x_max: Optional[int] = None
     y_min: Optional[int] = None
     y_max: Optional[int] = None
+
+    def __contains__(self, coords: GridCoordinates):
+        return coords in self.grid
 
     @property
     def n_rows(self) -> int:
