@@ -17,6 +17,7 @@ from .util import (
     print_,
     set_verbose,
     swap,
+    translate,
 )
 
 CaveGridPath = List[GridCoordinates]
@@ -101,10 +102,7 @@ def format_grid(grid: SparseGrid) -> str:
 def next_coord_and_value(
     grid: SparseGrid[T], current: GridCoordinates, step: GridCoordinates
 ) -> Tuple[GridCoordinates, Optional[T]]:
-    x, y = current
-    xstep, ystep = step
-    ynext, xnext = y + ystep, x + xstep
-    next_ = xnext, ynext
+    next_ = translate(step, current)
     return next_, grid.get(next_)
 
 
