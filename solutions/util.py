@@ -1,14 +1,15 @@
 import sys
-from collections import defaultdict
+from collections import defaultdict, deque
 from dataclasses import dataclass
 from functools import partial, reduce
 from heapq import heappop, heappush
-from itertools import accumulate, chain, islice, product
+from itertools import accumulate, chain, filterfalse, islice, product
 from operator import and_, is_, is_not, not_
 from typing import (
     AbstractSet,
     Callable,
     Collection,
+    Deque,
     Dict,
     Generic,
     Hashable,
@@ -153,6 +154,17 @@ def take_until(f: Predicate, it: Iterable[T]) -> Iterator[T]:
 
 def interleave(*its: Iterable[T]) -> Iterator[T]:
     return chain.from_iterable(zip(*its))
+
+
+def window(size: int, it: Iterable[T]) -> Iterator[Deque[T]]:
+    it = iter(it)
+    win = deque(islice(it, size))
+    if len(win) == size:
+        yield win
+        for i in it:
+            win.popleft()
+            win.append(i)
+            yield win
 
 
 def reduce_while(
@@ -384,6 +396,14 @@ def induced_subgraph(g: WeightedDiGraph[K], nodes: Collection[K]):
     }
 
 
+def dfs_graph(graph: WeightedDiGraph[K], node: K, visited: Optional[Set[K]] = None) -> Iterator[K]:
+    yield node
+    visited_ = set() if visited is None else visited
+    visited_.add(node)
+    for next_node in filterfalse(visited_.__contains__, graph[node]):
+        yield from dfs_graph(graph, next_node, visited_)
+
+
 def is_complete_graph(g: WeightedDiGraph[K]) -> bool:
     n_nodes = len(set(all_nodes(g)))
     return len(g) == n_nodes and all(len(nbrs) == n_nodes - 1 for nbrs in g.values())
@@ -489,13 +509,13 @@ def print_(*args, **kwargs):
         print(*args, **kwargs, file=sys.stderr)
 
 
-def parse_blocks(input_: Iterable[str], parse: Callable[[str], T]) -> Iterator[List[T]]:
+def parse_blocks(input_: Iterable[str], parse: Callable[[str], T]) -> Iterator[T]:
     block = []
     for line in map(str.rstrip, input_):
         if line:
-            block.append(parse(line))
+            block.append(line)
         elif block:
-            yield block
+            yield parse("\n".join(block))
             block = []
     if block:
-        yield block
+        yield parse("\n".join(block))

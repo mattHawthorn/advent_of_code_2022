@@ -1,10 +1,10 @@
 import re
 from functools import partial, reduce
-from itertools import chain, cycle, islice, takewhile
+from itertools import cycle, islice
 from operator import add, attrgetter, mul, sub
-from typing import IO, Callable, Dict, List, NamedTuple, Optional
+from typing import IO, Callable, Dict, List, NamedTuple
 
-from .util import lcm, print_, set_verbose
+from .util import lcm, parse_blocks, print_, set_verbose
 
 WorryLevel = int
 MonkeyID = int
@@ -38,16 +38,9 @@ monkey_re = re.compile(
 )
 
 
-def parse_monkey(input_: IO[str]) -> Optional[Monkey]:
-    for header in map(str.rstrip, input_):
-        if header:
-            break
-    else:
-        return None
-    lines = takewhile(bool, map(str.rstrip, input_))
-    monkey_match = monkey_re.fullmatch("\n".join(chain([header], lines)))
-    if monkey_match is None:
-        return None
+def parse_monkey(s: str) -> Monkey:
+    monkey_match = monkey_re.fullmatch(s)
+    assert monkey_match is not None
     fields = monkey_match.groupdict()
     id_ = int(fields["id"])
     if_true_id = int(fields["if_true"])
@@ -66,7 +59,7 @@ def parse_monkey(input_: IO[str]) -> Optional[Monkey]:
 
 
 def parse_monkeys(input_: IO[str]) -> List[Monkey]:
-    parsed_monkeys = iter(partial(parse_monkey, input_), None)
+    parsed_monkeys = parse_blocks(input_, parse_monkey)
     return sorted(parsed_monkeys, key=attrgetter("id_"))
 
 
@@ -83,9 +76,7 @@ def parse_transform(left: str, op: str, right: str) -> WorryLevelMod:
         return partial(op_f, int(left if r_is_input else right))
 
 
-def self_op(
-    op: Callable[[WorryLevel, WorryLevel], WorryLevel], value: WorryLevel
-) -> WorryLevel:
+def self_op(op: Callable[[WorryLevel, WorryLevel], WorryLevel], value: WorryLevel) -> WorryLevel:
     return op(value, value)
 
 
@@ -93,9 +84,7 @@ def rsub(operand: WorryLevel, value: WorryLevel):
     return value - operand
 
 
-def play_keepaway(
-    monkeys: List[Monkey], rounds: int, worry_reduction: int = 1
-) -> List[int]:
+def play_keepaway(monkeys: List[Monkey], rounds: int, worry_reduction: int = 1) -> List[int]:
     total_modulus = reduce(lcm, (m.modulus for m in monkeys))
     indexed_monkeys = {m.id_: m for m in monkeys}
     throw_counts = {m.id_: 0 for m in monkeys}
@@ -110,9 +99,7 @@ def play_keepaway(
             else:
                 new_worry_level = new_worry_level % total_modulus
             to_monkey_id = (
-                monkey.if_true
-                if new_worry_level % monkey.modulus == 0
-                else monkey.if_false
+                monkey.if_true if new_worry_level % monkey.modulus == 0 else monkey.if_false
             )
             to_monkey = indexed_monkeys[to_monkey_id]
             to_monkey.items.append(new_worry_level)

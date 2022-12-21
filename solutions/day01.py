@@ -1,19 +1,20 @@
 import heapq
-from typing import IO, Iterator, List
+from typing import IO, Callable, Iterator, List
 
 from .util import parse_blocks
 
 
+def parse_ints(s: str):
+    return list(map(int, s.strip().split("\n")))
+
+
 def parse_int_blocks(input_: IO[str]) -> Iterator[List[int]]:
-    return parse_blocks(input_, int)
-
-
-def sum_(ints: List[int]) -> int:
-    return sum(ints)
+    return parse_blocks(input_, parse_ints)
 
 
 def run(input_: IO[str], n: int = 1) -> int:
-    blocks = map(sum_, parse_blocks(input_, int))
+    sum_: Callable[[List[int]], int] = sum
+    blocks = map(sum_, parse_blocks(input_, parse_ints))
     return sum(heapq.nlargest(n, blocks))
 
 
