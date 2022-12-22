@@ -3,7 +3,7 @@ from itertools import chain, filterfalse, product, repeat
 from operator import itemgetter
 from typing import IO, Iterator, List, Set, Tuple
 
-from .util import Edge, GridCoordinates, connected_components, djikstra_any, weighted_edges_to_graph
+from .util import Edge, GridCoordinates, djikstra_any, weighted_edges_to_graph
 
 Coords = Tuple[int, int, int]
 
@@ -77,12 +77,6 @@ def envelope(shape: Set[Coords]) -> Iterator[Coords]:
             (0, yrange, zrange, xrange),
         ]
     )
-
-
-def components(shape: Set[Coords]) -> Iterator[Set[Coords]]:
-    graph = weighted_edges_to_graph(zip(grid_edges_between(shape, shape), repeat(1)))
-    isolates = ({n} for n in shape if n not in graph)
-    return chain(connected_components(graph), isolates)
 
 
 def surface_points_reachable_from_envelope(shape: Set[Coords]) -> Iterator[Coords]:
