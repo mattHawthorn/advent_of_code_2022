@@ -64,7 +64,8 @@ class AOC2022:
 
     @cli_spec.output_handler(print_solution)
     def run(self, day: int, **args: Param):
-        """Run the solution to a particular day's problem
+        """Run the solution to a particular day's problem. The default input is in the inputs/ folder,
+        but input will be read from stdin if input is piped there.
 
         :param day: the day number of the problem to solve (1-25)
         :param args: keyword arguments to pass to the problem solution in case it is parameterized.
