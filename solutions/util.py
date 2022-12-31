@@ -3,7 +3,7 @@ from collections import defaultdict, deque
 from dataclasses import dataclass
 from functools import partial, reduce
 from heapq import heappop, heappush
-from itertools import accumulate, chain, filterfalse, islice, product
+from itertools import accumulate, chain, filterfalse, islice, product, repeat
 from operator import and_, is_, is_not, not_
 from typing import (
     AbstractSet,
@@ -94,6 +94,14 @@ is_null: Predicate = partial(is_, None)
 
 def invert(f: Predicate[T]) -> Predicate[T]:
     return compose(f, not_)
+
+
+def any_(*fs: Predicate[T]) -> Predicate[T]:
+    return lambda t: any(map(call, repeat(t), fs))
+
+
+def all_(*fs: Predicate[T]) -> Predicate[T]:
+    return lambda t: all(map(call, repeat(t), fs))
 
 
 def identity(x: T) -> T:
@@ -520,6 +528,71 @@ def floyd_warshall(graph: WeightedDiGraph[K]) -> WeightedDiGraph[K]:
     nodes: Set[K] = set(all_nodes(graph))
     result = reduce(update_dist, product(nodes, nodes, nodes), distances)
     return result
+
+
+# Hard problems
+
+
+def branch_and_bound(
+    initial: Iterable[T],
+    heuristic_solution: T,
+    candidate_fn: Callable[[T], Iterable[T]],
+    stop_fn: Callable[[T], bool],
+    objective_fn: Callable[[T], int],
+    lower_bound_fn: Callable[[T], int],
+) -> Optional[T]:
+    return _branch_and_bound(
+        candidate_fn,
+        stop_fn,
+        objective_fn,
+        lower_bound_fn,
+        deque(initial),
+        heuristic_solution,
+        objective_fn(heuristic_solution),
+    )
+
+
+@tailrec
+def _branch_and_bound(
+    candidate_fn: Callable[[T], Iterable[T]],
+    stop_fn: Callable[[T], bool],
+    objective_fn: Callable[[T], int],
+    lower_bound_fn: Callable[[T], int],
+    queue: Deque[T],
+    best_solution: T,
+    objective_upper_bound: int,
+) -> Optional[T]:
+    if queue:
+        candidate = queue.popleft()
+        if stop_fn(candidate):
+            objective = objective_fn(candidate)
+            if objective < objective_upper_bound:
+                print_(f"NEW BEST OBJECTIVE: {objective}")
+                best_solution, objective_upper_bound = candidate, objective
+            return _branch_and_bound(
+                candidate_fn,
+                stop_fn,
+                objective_fn,
+                lower_bound_fn,
+                queue,
+                best_solution,
+                objective_upper_bound,
+            )
+        else:
+            is_viable = compose(lower_bound_fn, objective_upper_bound.__gt__)
+            viable_candidates = filter(is_viable, candidate_fn(candidate))
+            queue.extend(viable_candidates)
+            return _branch_and_bound(
+                candidate_fn,
+                stop_fn,
+                objective_fn,
+                lower_bound_fn,
+                queue,
+                best_solution,
+                objective_upper_bound,
+            )
+    else:
+        return best_solution
 
 
 # I/O
