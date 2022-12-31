@@ -1,5 +1,5 @@
 import re
-from functools import partial
+from functools import partial, reduce
 from itertools import chain, filterfalse
 from operator import add, itemgetter, mul, sub
 from typing import IO, Callable, Dict, Iterable, List, NamedTuple, Optional, Tuple
@@ -238,7 +238,10 @@ def run(input_: IO[str], part_2: bool = True, verbose: bool = False) -> int:
         (id_, State(steps, blueprint, MaterialState(), RobotState({ORE: 1}), []))
         for id_, blueprint in blueprints[: 3 if part_2 else len(blueprints)]
     )
-    return sum(id_ * -score(optimal_solution(state)) for id_, state in states)
+    if part_2:
+        return reduce(mul, (-score(optimal_solution(state)) for id_, state in states))
+    else:
+        return sum(id_ * -score(optimal_solution(state)) for id_, state in states)
 
 
 test_input = (
@@ -275,9 +278,12 @@ def test():
     test_prior(state)
     test_lower_bound(state)
     test_optimization()
-
-    quality_level = run(io.StringIO(test_input))
+    quality_level = run(io.StringIO(test_input), part_2=False)
     expected_quality_level = 33
+    assert quality_level == expected_quality_level, (quality_level, expected_quality_level)
+
+    quality_level = run(io.StringIO(test_input), part_2=True)
+    expected_quality_level = 56 * 62
     assert quality_level == expected_quality_level, (quality_level, expected_quality_level)
 
 
