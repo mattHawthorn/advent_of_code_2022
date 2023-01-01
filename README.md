@@ -3,7 +3,7 @@
 In these solutions I strive for elegance, generality, and efficiency, simultaneously if possible.
 Time-to-solution was not a metric I measured myself by, preferring aesthetics above all.
 The ultimate goal is to solve each problem in a purely functional paradigm, with no loops or mutable local variables.
-To this end, I've written a decorator, [`@tail_recursive`](solutions/tailrec.py#L37), which allows writing
+To this end, I've written a decorator, [`@tail_recursive`](solutions/tailrec.py#L35), which allows writing
 tail-recursive functions in a purely functional style without incurring unbounded stack height and extra function calls.
 This operates at the byte code level.
 I experimented with an AST-based solution, but found operating at the byte code level more satisfactory.
