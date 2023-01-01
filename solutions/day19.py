@@ -1,7 +1,7 @@
 import re
 from functools import partial, reduce
 from itertools import chain, filterfalse
-from operator import add, itemgetter, mul, sub
+from operator import add, mul, sub
 from typing import IO, Callable, Dict, Iterable, List, NamedTuple, Optional, Tuple
 
 from .tailrec import tailrec
@@ -140,11 +140,12 @@ def build(state: State, robot_type: RobotType) -> State:
 
 def harvest(state: State, steps: Optional[int] = None) -> State:
     if steps is None:
-        robot_type, steps = min(
-            ((rt, (cost - state.materials) / state.robots) for rt, cost in state.blueprint.items()),
-            key=itemgetter(1),
+        # min number of steps until at least one kind of robot can be built
+        steps_ = min(
+            (cost - state.materials) / state.robots for rt, cost in state.blueprint.items()
         )
-        steps_ = max(min(steps, state.budget), 1)
+        # but not exceeding the number of steps available, and at least 1
+        steps_ = max(min(steps_, state.budget), 1)
     else:
         steps_ = steps
 
@@ -178,8 +179,8 @@ def score_lower_bound(state: State) -> int:
     steps_remaining = state.budget
     total_production = state.robots.get(GEO, 0) * steps_remaining + state.materials.get(GEO, 0)
     steps_to_next_geode_bot = 0 if can_build(state, GEO) else 1
-    max_geode_bots = steps_remaining - steps_to_next_geode_bot
-    hypothetical_production = max_geode_bots * (max_geode_bots - 1) // 2
+    max_geode_bots_built = steps_remaining - steps_to_next_geode_bot
+    hypothetical_production = max_geode_bots_built * (max_geode_bots_built - 1) // 2
     return -(total_production + hypothetical_production)
 
 
@@ -187,9 +188,7 @@ def score_lower_bound(state: State) -> int:
 
 
 @tailrec
-def heuristic_optimal_step(
-    state: State, target_resource: Material = GEO, verbose: bool = False
-) -> State:
+def heuristic_optimal_step(state: State, target_resource: Material = GEO) -> State:
     # choose the action (among those available) that will minimize the distance between
     # the robot distribution and the resources required to build a geode-producing robot
     requirements = state.blueprint[target_resource] - state.materials
@@ -206,20 +205,19 @@ def heuristic_optimal_step(
         if next_target_resource == target_resource:  # need x to get x; harvest
             return harvest(state)
         else:
-            return heuristic_optimal_step(state, next_target_resource, verbose=verbose)
+            return heuristic_optimal_step(state, next_target_resource)
 
 
-def heuristic_solve(state: State, stop_fn: Callable[[State], bool], verbose: bool = False) -> State:
-    states = iterate(partial(heuristic_optimal_step, verbose=verbose), state)
+def heuristic_solution(state: State, stop_fn: Callable[[State], bool]) -> State:
+    states = iterate(heuristic_optimal_step, state)
     valid_states = take_until(stop_fn, states)
     return list(valid_states)[-1]
 
 
 def optimal_solution(state: State):
-    heuristic_solution = heuristic_solve(state, is_final, verbose=False)
     return branch_and_bound(
         initial=[state],
-        heuristic_solution=heuristic_solution,
+        heuristic_solution=heuristic_solution(state, is_final),
         candidate_fn=candidate_solutions,
         stop_fn=is_final,
         objective_fn=score,
