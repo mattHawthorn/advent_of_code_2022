@@ -3,7 +3,7 @@ from functools import cmp_to_key, reduce
 from itertools import chain, starmap
 from typing import IO, Iterable, Iterator, List, Optional, Tuple, Union, cast
 
-from .tailrec import tailrec
+from .tailrec import tail_recursive
 from .util import Predicate, chunked, invert, is_not_null, print_, set_verbose, take_until
 
 Packet = Union[List, int]
@@ -16,7 +16,7 @@ is_not_digit: Predicate[str] = invert(str.isdigit)
 # Why use `eval` or `json.loads`? This is more fun!
 
 
-@tailrec
+@tail_recursive
 def _read_list(chars: Iterator[str], values: List) -> List:
     next_, last_char = _read_value(chars)
     if next_ is not None:

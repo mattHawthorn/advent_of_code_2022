@@ -4,7 +4,7 @@ from itertools import chain, filterfalse
 from operator import add, mul, sub
 from typing import IO, Callable, Dict, Iterable, List, NamedTuple, Optional, Tuple
 
-from .tailrec import tailrec
+from .tailrec import tail_recursive
 from .util import INF, branch_and_bound, iterate, set_verbose, take_until
 
 Material = str
@@ -187,7 +187,7 @@ def score_lower_bound(state: State) -> int:
 # Solutions
 
 
-@tailrec
+@tail_recursive
 def heuristic_optimal_step(state: State, target_resource: Material = GEO) -> State:
     # choose the action (among those available) that will minimize the distance between
     # the robot distribution and the resources required to build a geode-producing robot

@@ -11,9 +11,7 @@ RETURN_OPS = {name for name in dis.opname if name.startswith("RETURN_")}
 SIDE_EFFECT_OPS = RETURN_OPS | {
     name
     for name in dis.opname
-    if name.startswith("STORE_")
-    or name.startswith("JUMP_")
-    or name.startswith("YIELD_")
+    if name.startswith("STORE_") or name.startswith("JUMP_") or name.startswith("YIELD_")
 }
 BYTECODE_SIZE = 2
 CALL_FUNCTION_OP, CALL_FUNCTION_KW_OP = "CALL_FUNCTION", "CALL_FUNCTION_KW"
@@ -34,18 +32,14 @@ NO_OP = "NOP"
 NO_OPCODE = dis.opmap[NO_OP]
 
 
-def tailrec(f: Callable) -> FunctionType:
+def tail_recursive(f: Callable) -> FunctionType:
     assert isinstance(f, FunctionType)
     instructions = list(dis.get_instructions(f))
     sig = signature(f)
     code = f.__code__
-    new_instructions, new_consts, is_optimized = transform_tail_calls(
-        instructions, sig, code
-    )
+    new_instructions, new_consts, is_optimized = transform_tail_calls(instructions, sig, code)
     if not is_optimized:
-        warn(
-            f"No recursive tail calls found in function {code.co_name}; can't optimize"
-        )
+        warn(f"No recursive tail calls found in function {code.co_name}; can't optimize")
         return f
 
     new_bytecode = assemble(new_instructions)
@@ -76,9 +70,7 @@ def tailrec(f: Callable) -> FunctionType:
     )
 
 
-def recursive_call_span(
-    instructions: Sequence[dis.Instruction], func_name: str
-) -> Optional[int]:
+def recursive_call_span(instructions: Sequence[dis.Instruction], func_name: str) -> Optional[int]:
     # pattern:
     # LOAD_GLOBAL(func_name)
     # [^STORE_*|RETURN_VALUE|YIELD_VALUE|YIELD_FROM_ITER]*
@@ -136,23 +128,17 @@ def transform_tail_call(
     nargs = call.argval
     if call.opname == CALL_FUNCTION_OP:
         new_instructions = instructions[0:-2]
-        old_ix_to_new_ix = dict(
-            zip(range(0, len(instructions) - 2), range(len(new_instructions)))
-        )
+        old_ix_to_new_ix = dict(zip(range(0, len(instructions) - 2), range(len(new_instructions))))
         args = range(nargs)
         kw = {}
     elif call.opname == CALL_FUNCTION_KW_OP:
         new_instructions = instructions[0:-3]
-        old_ix_to_new_ix = dict(
-            zip(range(0, len(instructions) - 3), range(len(new_instructions)))
-        )
+        old_ix_to_new_ix = dict(zip(range(0, len(instructions) - 3), range(len(new_instructions))))
         kw_names = instructions[-3].argval
         args = range(nargs - len(kw_names))
         kw = {k: i for i, k in enumerate(kw_names, nargs - len(kw_names))}
     else:
-        raise ValueError(
-            f"Unknown op where a function call was expected: {call.opname}"
-        )
+        raise ValueError(f"Unknown op where a function call was expected: {call.opname}")
 
     # Leave this in in place of the function load as a jump target e.g. in case of an if block
     # where the return happens immediately
@@ -274,13 +260,9 @@ def _fix_offsets_and_jumps(
             # fix up jump targets
             old_target = instr.arg
             try:
-                new_target = (
-                    old_ix_to_new_ix[old_target // BYTECODE_SIZE] * BYTECODE_SIZE
-                )
+                new_target = old_ix_to_new_ix[old_target // BYTECODE_SIZE] * BYTECODE_SIZE
             except KeyError:
-                raise ValueError(
-                    f"Jump target {old_target} is missing after code reorganization"
-                )
+                raise ValueError(f"Jump target {old_target} is missing after code reorganization")
 
             if new_target >= 2 << 8:
                 raise ValueError(
@@ -335,14 +317,10 @@ def transform_tail_calls(
         )
 
         tail_call = instructions[start:stop]
-        jump, new_consts, old_ix_to_new_ix_ = transform_tail_call(
-            tail_call, sig, code, new_consts
-        )
+        jump, new_consts, old_ix_to_new_ix_ = transform_tail_call(tail_call, sig, code, new_consts)
         current_len = len(new_code)
         new_code.extend(jump)
-        old_ix_to_new_ix.update(
-            (start + i, current_len + j) for i, j in old_ix_to_new_ix_.items()
-        )
+        old_ix_to_new_ix.update((start + i, current_len + j) for i, j in old_ix_to_new_ix_.items())
         prior_stop = stop
 
     current_len = len(new_code)

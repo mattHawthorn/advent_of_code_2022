@@ -25,7 +25,7 @@ from typing import (
     TypeVar,
 )
 
-from .tailrec import tailrec
+from .tailrec import tail_recursive
 
 VERBOSE = False
 
@@ -42,7 +42,7 @@ def sign(x: int) -> int:
     return 0 if x == 0 else (1 if x > 0 else -1)
 
 
-@tailrec
+@tail_recursive
 def gcd(m, n):
     # Euclid
     larger, smaller = (m, n) if m > n else (n, m)
@@ -552,7 +552,7 @@ def branch_and_bound(
     )
 
 
-@tailrec
+@tail_recursive
 def _branch_and_bound(
     candidate_fn: Callable[[T], Iterable[T]],
     stop_fn: Callable[[T], bool],

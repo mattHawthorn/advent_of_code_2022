@@ -3,7 +3,7 @@ from itertools import chain, islice, product, repeat
 from operator import itemgetter
 from typing import IO, Callable, Iterable, Iterator, List, Optional, Tuple
 
-from .tailrec import tailrec
+from .tailrec import tail_recursive
 from .util import (
     GridCoordinates,
     Predicate,
@@ -115,7 +115,7 @@ def sand_grain_path(grid: SparseGrid[T], start: GridCoordinates) -> Iterator[Gri
     return nonnull_head(iterate(next_, start))
 
 
-@tailrec
+@tail_recursive
 def simulate(
     grid: SparseGrid[T],
     start: GridCoordinates,
