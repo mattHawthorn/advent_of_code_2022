@@ -31,7 +31,7 @@ class Counts(dict):
         return all(self.get(k, 0) >= v for k, v in other.items())
 
     def __mul__(self, other: int) -> "Counts":
-        return MaterialState((k, mul(v, other)) for k, v in self.items())
+        return Counts((k, mul(v, other)) for k, v in self.items())
 
     def __truediv__(self, other: "Counts") -> int:
         def div(x: int, y: int):
@@ -44,17 +44,14 @@ class Counts(dict):
         return max(self._op(other, div).values())
 
 
-Costs = Counts
-RobotState = Counts
-MaterialState = Counts
-BluePrint = Dict[RobotType, Costs]
+BluePrint = Dict[RobotType, Counts]
 
 
 class State(NamedTuple):
     budget: int
     blueprint: BluePrint
-    materials: MaterialState
-    robots: RobotState
+    materials: Counts
+    robots: Counts
     steps: List[Optional[RobotType]]
 
     @property
@@ -75,25 +72,23 @@ class State(NamedTuple):
 
 # Parsing
 
-ORE, CLAY, OBS, GEO = ("ore", "clay", "obsidian", "geode")
-ROBOT_TYPES: List[Material] = [ORE, CLAY, OBS, GEO]
-SOURCE_MATERIALS: List[Material] = [ORE, CLAY, OBS]
+ORE, CLAY, OBS, GEO = "ore", "clay", "obsidian", "geode"
 
-cost_re = re.compile(r"(?P<qty>\d+) (?P<material>{})".format("|".join(SOURCE_MATERIALS)))
+cost_re = re.compile(r"(?P<qty>\d+) (?P<material>{})".format("|".join([ORE, CLAY, OBS])))
 robot_re = re.compile(
-    r"Each (?P<robot_type>{}) robot costs (?P<costs>[^.]*).".format("|".join(ROBOT_TYPES))
+    r"Each (?P<robot_type>{}) robot costs (?P<costs>[^.]*).".format("|".join([ORE, CLAY, OBS, GEO]))
 )
 blueprint_re = re.compile(r"Blueprint (?P<id>\d+): (?P<robots>.*)")
 
 
-def parse_costs(s: str) -> Costs:
-    return MaterialState(
+def parse_costs(s: str) -> Counts:
+    return Counts(
         {match.group("material"): int(match.group("qty")) for match in cost_re.finditer(s)}
     )
 
 
 def parse_robots(s: str) -> BluePrint:
-    return MaterialState(
+    return Counts(
         {
             match.group("robot_type"): parse_costs(match.group("costs"))
             for match in robot_re.finditer(s)
@@ -127,6 +122,8 @@ def build_options(state: State) -> List[RobotType]:
         partial(should_build, state), filter(partial(can_build, state), state.blueprint)
     )
     if state.steps and state.steps[-1] is None:
+        # if we didn't build on the last step, don't build anything on this step that we
+        # _could_ have built then
         return list(filterfalse(partial(can_build, state.prior), robot_types))
     else:
         return list(robot_types)
@@ -134,7 +131,7 @@ def build_options(state: State) -> List[RobotType]:
 
 def build(state: State, robot_type: RobotType) -> State:
     new_materials = state.materials - state.blueprint[robot_type] + state.robots
-    new_robots = RobotState(state.robots)
+    new_robots = Counts(state.robots)
     new_robots[robot_type] = state.robots.get(robot_type, 0) + 1
     return State(
         state.budget - 1, state.blueprint, new_materials, new_robots, state.steps + [robot_type]
@@ -235,7 +232,7 @@ def run(input_: IO[str], part_2: bool = True, verbose: bool = False) -> int:
     blueprints = list(map(parse_blueprint, input_))
     steps = 32 if part_2 else 24
     states = (
-        (id_, State(steps, blueprint, MaterialState(), RobotState({ORE: 1}), []))
+        (id_, State(steps, blueprint, Counts(), Counts({ORE: 1}), []))
         for id_, blueprint in blueprints[: 3 if part_2 else len(blueprints)]
     )
     if part_2:
@@ -270,9 +267,9 @@ def test():
 
     state = State(
         budget=5,
-        blueprint={GEO: Costs({ORE: 2, OBS: 4}), ORE: Costs(), CLAY: Costs(), OBS: Costs()},
-        materials=MaterialState({ORE: 1, CLAY: 2, OBS: 2, GEO: 2}),
-        robots=RobotState({ORE: 1, CLAY: 1, GEO: 1, OBS: 1}),
+        blueprint={GEO: Counts({ORE: 2, OBS: 4}), ORE: Counts(), CLAY: Counts(), OBS: Counts()},
+        materials=Counts({ORE: 1, CLAY: 2, OBS: 2, GEO: 2}),
+        robots=Counts({ORE: 1, CLAY: 1, GEO: 1, OBS: 1}),
         steps=[],
     )
     test_prior(state)
@@ -338,13 +335,13 @@ def test_optimization():
     state_ = State(
         24,
         {
-            ORE: Costs({ORE: 2}),
-            CLAY: Costs({ORE: 3}),
-            OBS: Costs({ORE: 3, CLAY: 8}),
-            GEO: Costs({ORE: 3, OBS: 12}),
+            ORE: Counts({ORE: 2}),
+            CLAY: Counts({ORE: 3}),
+            OBS: Counts({ORE: 3, CLAY: 8}),
+            GEO: Counts({ORE: 3, OBS: 12}),
         },
-        MaterialState(),
-        RobotState({ORE: 1}),
+        Counts(),
+        Counts({ORE: 1}),
         [],
     )
     final_score = -12
