@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from functools import partial, reduce
 from heapq import heappop, heappush
 from itertools import accumulate, chain, filterfalse, islice, product, repeat
-from operator import and_, is_, is_not, not_
+from operator import add, and_, is_, is_not, not_, sub
 from typing import (
     AbstractSet,
     Callable,
@@ -23,6 +23,7 @@ from typing import (
     Set,
     Tuple,
     TypeVar,
+    overload,
 )
 
 from .tailrec import tail_recursive
@@ -212,14 +213,38 @@ def non_overlapping(sets: Iterable[AbstractSet]) -> bool:
 
 Grid = List[List[T]]
 GridCoordinates = Tuple[int, int]
+GridCoordinates3D = Tuple[int, int, int]
 Vector = Tuple[int, int]
+Vector3D = Tuple[int, int, int]
 Sprite = Sequence[GridCoordinates]
 
 
+@overload
 def translate(step: Vector, coords: GridCoordinates) -> GridCoordinates:
-    x, y = coords
-    x_step, y_step = step
-    return x + x_step, y + y_step
+    ...
+
+
+@overload
+def translate(step: Vector3D, coords: GridCoordinates3D) -> GridCoordinates3D:
+    ...
+
+
+def translate(step, coords):
+    return tuple(map(add, step, coords))
+
+
+@overload
+def translate_inv(step: Vector, coords: GridCoordinates) -> GridCoordinates:
+    ...
+
+
+@overload
+def translate_inv(step: Vector3D, coords: GridCoordinates3D) -> GridCoordinates3D:
+    ...
+
+
+def translate_inv(step, coords):
+    return tuple(map(sub, coords, step))
 
 
 def translate_all(step: Vector, obj: Sprite) -> Sprite:
