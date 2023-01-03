@@ -3,53 +3,56 @@ from itertools import chain, filterfalse, product, repeat
 from operator import itemgetter
 from typing import IO, Iterator, List, Set, Tuple
 
-from .util import Edge, GridCoordinates, djikstra_any, weighted_edges_to_graph
-
-Coords = Tuple[int, int, int]
+from .util import (
+    Edge,
+    GridCoordinates,
+    GridCoordinates3D,
+    djikstra_any,
+    translate,
+    translate_inv,
+    weighted_edges_to_graph,
+)
 
 D = 3
 S = 2 * D
 
 
-def parse_coords(line: str) -> Coords:
+def parse_coords(line: str) -> GridCoordinates3D:
     x, y, z = line.split(",", 2)
     return int(x), int(y), int(z)
 
 
-def parse_all_coords(input_: IO[str]) -> Iterator[Coords]:
+def parse_all_coords(input_: IO[str]) -> Iterator[GridCoordinates3D]:
     return map(parse_coords, filter(None, map(str.strip, input_)))
 
 
-def pack(ix: int, coords: GridCoordinates, x: int) -> Coords:
+def pack(ix: int, coords: GridCoordinates, x: int) -> GridCoordinates3D:
     a, b = coords
     return (x, a, b) if ix == 0 else (a, x, b) if ix == 1 else (a, b, x)
 
 
-def grid_neighbors(coords: Coords) -> List[Coords]:
-    x, y, z = coords
+def grid_neighbors(coords: GridCoordinates3D) -> List[GridCoordinates3D]:
     return [
-        (x, y, z - 1),
-        (x, y, z + 1),
-        (x, y - 1, z),
-        (x, y + 1, z),
-        (x - 1, y, z),
-        (x + 1, y, z),
+        f(v, coords)
+        for v, f in product([(0, 0, 1), (0, 1, 0), (1, 0, 0)], [translate_inv, translate])
     ]
 
 
-def grid_edges_between(shape1: Set[Coords], shape2: Set[Coords]) -> Iterator[Edge[Coords]]:
-    def inner(shape: Set[Coords], coords: Coords):
+def grid_edges_between(
+    shape1: Set[GridCoordinates3D], shape2: Set[GridCoordinates3D]
+) -> Iterator[Edge[GridCoordinates3D]]:
+    def inner(shape: Set[GridCoordinates3D], coords: GridCoordinates3D):
         nbrs = filter(shape.__contains__, grid_neighbors(coords))
         return zip(repeat(coords), nbrs)
 
     return chain.from_iterable(map(partial(inner, shape2), shape1))
 
 
-def surface(shape: Set[Coords]) -> Iterator[Coords]:
+def surface(shape: Set[GridCoordinates3D]) -> Iterator[GridCoordinates3D]:
     return filterfalse(shape.__contains__, chain.from_iterable(map(grid_neighbors, shape)))
 
 
-def ranges(shape: Set[Coords]) -> Tuple[range, range, range]:
+def ranges(shape: Set[GridCoordinates3D]) -> Tuple[range, range, range]:
     xs = set(map(itemgetter(0), shape))
     ys = set(map(itemgetter(1), shape))
     zs = set(map(itemgetter(2), shape))
@@ -59,12 +62,12 @@ def ranges(shape: Set[Coords]) -> Tuple[range, range, range]:
     return xrange, yrange, zrange
 
 
-def volume(shape: Set[Coords]) -> Iterator[Coords]:
+def volume(shape: Set[GridCoordinates3D]) -> Iterator[GridCoordinates3D]:
     xrange, yrange, zrange = ranges(shape)
     return product(xrange, yrange, zrange)
 
 
-def envelope(shape: Set[Coords]) -> Iterator[Coords]:
+def envelope(shape: Set[GridCoordinates3D]) -> Iterator[GridCoordinates3D]:
     xrange, yrange, zrange = ranges(shape)
     return chain.from_iterable(
         chain(
@@ -79,7 +82,9 @@ def envelope(shape: Set[Coords]) -> Iterator[Coords]:
     )
 
 
-def surface_points_reachable_from_envelope(shape: Set[Coords]) -> Iterator[Coords]:
+def surface_points_reachable_from_envelope(
+    shape: Set[GridCoordinates3D],
+) -> Iterator[GridCoordinates3D]:
     # boundary points of the shape
     surface_points = set(surface(shape))
     # points inside the cuboid containing the shape and its surface points, but excluding the shape
