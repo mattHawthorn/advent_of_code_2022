@@ -139,7 +139,8 @@ def iterate(f: Callable[[T], T], initial: T) -> Iterator[T]:
 
 
 def chunked(n: int, it: Iterable[T]) -> Iterator[List[T]]:
-    return iter(lambda: list(islice(it, n)), [])
+    it_ = iter(it)
+    return iter(lambda: list(islice(it_, n)), [])
 
 
 def first(it: Iterable[T]) -> T:
