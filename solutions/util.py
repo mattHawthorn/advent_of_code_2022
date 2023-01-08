@@ -254,6 +254,10 @@ def translate_all(step: Vector, obj: Sprite) -> Sprite:
     return list(map(partial(translate, step), obj))
 
 
+def manhattan_distance(coord1: GridCoordinates, coord2: GridCoordinates) -> int:
+    return abs(coord1[0] - coord2[0]) + abs(coord1[1] - coord2[1])
+
+
 @dataclass
 class SparseGrid(Generic[T]):
     grid: Dict[GridCoordinates, T]
@@ -470,23 +474,29 @@ def djikstra(graph: AnyGraph[K], start: K, end: K) -> Tuple[List[K], int]:
 
 
 def djikstra_all(
-    graph: WeightedDiGraph[K], start: K, ends: Collection[K] = frozenset()
+    graph: WeightedDiGraph[K],
+    start: K,
+    ends: Collection[K] = frozenset(),
+    heuristic: Optional[Callable[[K], int]] = None,
 ) -> Iterator[Tuple[List[K], int]]:
     """Return all shortest paths from node `start` to each node in `ends` (or the whole graph
     if this is empty)"""
     ends_: Collection[K] = set(ends) if ends else graph
     is_final = compose(len, len(ends_).__eq__)
-    state = DjikstraState(graph, start, ends_.__contains__, is_final)
+    state = DjikstraState(graph, start, ends_.__contains__, is_final, heuristic)
     for end in ends or graph:
         yield state.shortest_path(end)
 
 
 def djikstra_any(
-    graph: AnyGraph[K], start: K, ends: Union[Collection[K], Callable[[K], bool]]
+    graph: AnyGraph[K],
+    start: K,
+    ends: Union[Collection[K], Callable[[K], bool]],
+    heuristic: Optional[Callable[[K], int]] = None,
 ) -> Optional[Tuple[List[K], int]]:
     """Return all shortest paths from node `start` to each node in `ends` (or the whole graph
     if this is empty)"""
-    state = DjikstraState(graph, start, ends, compose(len, (1).__eq__))
+    state = DjikstraState(graph, start, ends, compose(len, (1).__eq__), heuristic)
     if state.visited_ends:
         end = next(iter(state.visited_ends))
         return state.shortest_path(end)
@@ -501,12 +511,14 @@ class DjikstraState(Generic[K]):
         start: K,
         ends: Union[Collection[K], Callable[[K], bool]] = frozenset(),
         is_complete: Callable[[Set[K]], bool] = compose(len, (1).__eq__),
+        heuristic: Optional[Callable[[K], int]] = None,
     ):
         self.neighbors = cast(
             NeighborFunc[K], graph if callable(graph) else partial(neighbors, graph)
         )
         self.is_end = ends if callable(ends) else ends.__contains__
         self.is_complete = is_complete
+        self.heuristic = heuristic
         self.start = start
         self.visited_ends: Set[K] = set()
         self.visited: Set[K] = set()
@@ -521,18 +533,19 @@ class DjikstraState(Generic[K]):
             if dist < self.distances[n]:
                 self.distances[n] = dist
                 self.predecessors[n] = node
-                heappush(self.min_dist_heap, HeapItem(n, dist))
+                dist_estimated = dist if self.heuristic is None else dist + self.heuristic(n)
+                heappush(self.min_dist_heap, HeapItem(n, dist_estimated))
 
     def next_candidate_node(self, node: K) -> Optional[K]:
-        dist = self.distances[node]
+        dist = self.distance(node)
         nbrs = self.neighbors(node)
         new_dists = ((n, dist + d) for n, d in nbrs if n not in self.visited)
         self.update_dists(new_dists, node)
         self.visited.add(node)
         return heappop(self.min_dist_heap).key if self.min_dist_heap else None
 
-    def distance(self, end: K) -> int:
-        return self.distances[end]
+    def distance(self, node: K) -> int:
+        return self.distances[node]
 
     def shortest_path(self, end: K) -> Tuple[List[K], int]:
         if end not in self.distances:
@@ -540,7 +553,7 @@ class DjikstraState(Generic[K]):
         else:
             predecessor = self.predecessors.get
             reverse_path = list(nonnull_head(iterate(predecessor, end)))  # type: ignore
-            return list(reversed(reverse_path)), self.distances[end]
+            return list(reversed(reverse_path)), self.distance(end)
 
     def accumulate_shortest_paths(self):
         for node in iterate(self.next_candidate_node, self.start):

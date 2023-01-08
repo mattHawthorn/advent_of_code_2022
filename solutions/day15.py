@@ -3,7 +3,7 @@ from functools import partial
 from itertools import chain, combinations, starmap
 from typing import IO, Iterable, List, Optional, Tuple
 
-from .util import GridCoordinates, reduce_while
+from .util import GridCoordinates, manhattan_distance, reduce_while
 
 Interval = Tuple[int, int]
 # slope, y intercept
@@ -27,10 +27,6 @@ def parse_sensor(line: str) -> Tuple[GridCoordinates, GridCoordinates]:
 
 def parse_sensors(input_: IO[str]) -> List[Tuple[GridCoordinates, GridCoordinates]]:
     return list(map(parse_sensor, input_))
-
-
-def manhattan_distance(coord1: GridCoordinates, coord2: GridCoordinates) -> int:
-    return abs(coord1[0] - coord2[0]) + abs(coord1[1] - coord2[1])
 
 
 def sensor_range_at_row(

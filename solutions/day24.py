@@ -5,7 +5,16 @@ from itertools import chain, islice, repeat
 from operator import itemgetter
 from typing import IO, Iterable, List, NamedTuple, Optional, Set, Tuple
 
-from .util import GridCoordinates, T, compose, djikstra_any, iterate, lcm, translate
+from .util import (
+    GridCoordinates,
+    T,
+    compose,
+    djikstra_any,
+    iterate,
+    lcm,
+    manhattan_distance,
+    translate,
+)
 
 L, R, U, D = "<", ">", "^", "v"
 LV, RV, UV, DV = (-1, 0), (1, 0), (0, 1), (0, -1)
@@ -164,10 +173,11 @@ def run(
     next_states_ = compose(partial(next_states, time_steps), with_const_weight)  # type: ignore
     is_end = compose(itemgetter(0), valley.end.__eq__)
     is_start = compose(itemgetter(0), valley.start.__eq__)
+    dist_to_end = compose(itemgetter(0), partial(manhattan_distance, valley.end))
     initial_state = (valley.start, 1)
 
     def shortest_path(state, is_terminal):
-        path_n_steps = djikstra_any(next_states_, state, is_terminal)
+        path_n_steps = djikstra_any(next_states_, state, is_terminal, dist_to_end)
         assert path_n_steps is not None
         return path_n_steps[0]
 
@@ -201,6 +211,6 @@ def test():
     expected_time = 18
     assert actual_time == expected_time, (expected_time, actual_time)
 
-    actual_time = run(io.StringIO(test_input), part_2=True)
+    actual_time = run(io.StringIO(test_input), part_2=True, verbose=True)
     expected_time = 54
     assert actual_time == expected_time, (expected_time, actual_time)
