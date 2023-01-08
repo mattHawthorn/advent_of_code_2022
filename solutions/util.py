@@ -23,6 +23,8 @@ from typing import (
     Set,
     Tuple,
     TypeVar,
+    Union,
+    cast,
     overload,
 )
 
@@ -349,8 +351,15 @@ def tree_acc(
 
 # node -> node -> weight
 WeightedDiGraph = MutableMapping[K, MutableMapping[K, int]]
+NeighborFunc = Callable[[K], Iterable[Tuple[K, int]]]
+AnyGraph = Union[WeightedDiGraph[K], NeighborFunc[K]]
 Edge = Tuple[K, K]
 WeightedEdge = Tuple[Edge[K], int]
+
+
+def neighbors(graph: WeightedDiGraph[K], node: K) -> Iterable[Tuple[K, int]]:
+    nbrs = graph.get(node)
+    return nbrs.items() if nbrs else []
 
 
 def all_edges(graph: WeightedDiGraph[K]) -> Iterator[WeightedEdge[K]]:
@@ -454,7 +463,7 @@ def is_complete_graph(g: WeightedDiGraph[K]) -> bool:
     return len(g) == n_nodes and all(len(nbrs) == n_nodes - 1 for nbrs in g.values())
 
 
-def djikstra(graph: WeightedDiGraph[K], start: K, end: K) -> Tuple[List[K], int]:
+def djikstra(graph: AnyGraph[K], start: K, end: K) -> Tuple[List[K], int]:
     """Return shortest path (if any) from node `start` to node `end`, and the total weight
     of the path"""
     return DjikstraState(graph, start, [end]).shortest_path(end)
@@ -465,31 +474,40 @@ def djikstra_all(
 ) -> Iterator[Tuple[List[K], int]]:
     """Return all shortest paths from node `start` to each node in `ends` (or the whole graph
     if this is empty)"""
-    state = DjikstraState(graph, start, ends, False)
+    ends_: Collection[K] = set(ends) if ends else graph
+    is_final = compose(len, len(ends_).__eq__)
+    state = DjikstraState(graph, start, ends_.__contains__, is_final)
     for end in ends or graph:
         yield state.shortest_path(end)
 
 
-def djikstra_any(graph: WeightedDiGraph[K], start: K, ends: Collection[K]) -> Tuple[List[K], int]:
+def djikstra_any(
+    graph: AnyGraph[K], start: K, ends: Union[Collection[K], Callable[[K], bool]]
+) -> Optional[Tuple[List[K], int]]:
     """Return all shortest paths from node `start` to each node in `ends` (or the whole graph
     if this is empty)"""
-    state = DjikstraState(graph, start, ends, True)
-    end = next(iter(state.visited_ends or ends))
-    return state.shortest_path(end)
+    state = DjikstraState(graph, start, ends, compose(len, (1).__eq__))
+    if state.visited_ends:
+        end = next(iter(state.visited_ends))
+        return state.shortest_path(end)
+    else:
+        return None
 
 
 class DjikstraState(Generic[K]):
     def __init__(
         self,
-        graph: WeightedDiGraph[K],
+        graph: AnyGraph[K],
         start: K,
-        ends: Collection[K] = frozenset(),
-        any_: bool = False,
+        ends: Union[Collection[K], Callable[[K], bool]] = frozenset(),
+        is_complete: Callable[[Set[K]], bool] = compose(len, (1).__eq__),
     ):
-        self.graph = graph
+        self.neighbors = cast(
+            NeighborFunc[K], graph if callable(graph) else partial(neighbors, graph)
+        )
+        self.is_end = ends if callable(ends) else ends.__contains__
+        self.is_complete = is_complete
         self.start = start
-        self.ends = set(ends)
-        self.any_ = any_
         self.visited_ends: Set[K] = set()
         self.visited: Set[K] = set()
         self.distances: Dict[K, int] = defaultdict(Inf)
@@ -507,7 +525,7 @@ class DjikstraState(Generic[K]):
 
     def next_candidate_node(self, node: K) -> Optional[K]:
         dist = self.distances[node]
-        nbrs = self.graph.get(node, {}).items()
+        nbrs = self.neighbors(node)
         new_dists = ((n, dist + d) for n, d in nbrs if n not in self.visited)
         self.update_dists(new_dists, node)
         self.visited.add(node)
@@ -528,9 +546,9 @@ class DjikstraState(Generic[K]):
         for node in iterate(self.next_candidate_node, self.start):
             if node is None:
                 return
-            elif node in self.ends:
+            elif self.is_end(node):
                 self.visited_ends.add(node)
-                if self.any_ or len(self.visited_ends) == len(self.ends):
+                if self.is_complete(self.visited_ends):
                     return
 
 
