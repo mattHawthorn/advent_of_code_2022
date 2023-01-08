@@ -95,7 +95,7 @@ def surface_points_reachable_from_envelope(
     edges = chain(grid_edges_between(vol, vol), grid_edges_between(vol, env))
     graph = weighted_edges_to_graph(zip(edges, repeat(1)))
     # all surface points with a grid path to some point in the envelope
-    return (point for point in surface_points if djikstra_any(graph, point, env)[0])
+    return (point for point in surface_points if djikstra_any(graph, point, env))
 
 
 def run(input_: IO[str], part_2: bool = True) -> int:
