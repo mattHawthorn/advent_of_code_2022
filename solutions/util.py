@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from functools import partial, reduce
 from heapq import heappop, heappush
 from itertools import accumulate, chain, filterfalse, islice, product, repeat
-from operator import add, and_, is_, is_not, not_, sub
+from operator import add, and_, is_, is_not, itemgetter, not_, sub
 from typing import (
     AbstractSet,
     Callable,
@@ -123,6 +123,10 @@ def compose(f: Callable[[T], U], g: Callable[[U], V]) -> Callable[[T], V]:
 def swap(t: Tuple[T, U]) -> Tuple[U, T]:
     a, b = t
     return b, a
+
+
+fst = itemgetter(0)
+snd = itemgetter(1)
 
 
 # Iterators

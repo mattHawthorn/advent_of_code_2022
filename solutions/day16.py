@@ -1,10 +1,9 @@
 import re
 from functools import partial, reduce
 from itertools import filterfalse, product, repeat
-from operator import itemgetter
 from typing import IO, FrozenSet, List, MutableMapping, NamedTuple, Tuple
 
-from .util import WeightedDiGraph, compose, floyd_warshall, induced_subgraph, non_overlapping
+from .util import WeightedDiGraph, compose, floyd_warshall, fst, induced_subgraph, non_overlapping
 
 line_re = re.compile(
     r"Valve (?P<id>\w+) [\w\s]+ rate=(?P<rate>\d+); [\w\s]+ valves? (?P<neighbors>\w+(?:, \w+)*)"
@@ -48,7 +47,7 @@ def optimal_flow(
 ) -> MutableMapping[ValveState, int]:
     if budget > 0:
         best[state] = max(best.get(state, 0), flow)
-        is_visited = compose(itemgetter(0), state.__contains__)
+        is_visited = compose(fst, state.__contains__)
         candidate_neighbors = filterfalse(is_visited, graph[node].items())
 
         def inner(

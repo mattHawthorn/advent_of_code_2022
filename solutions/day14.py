@@ -1,6 +1,5 @@
 from functools import partial, reduce
 from itertools import chain, islice, product, repeat
-from operator import itemgetter
 from typing import IO, Callable, Iterable, Iterator, List, Optional, Tuple
 
 from .tailrec import tail_recursive
@@ -12,11 +11,13 @@ from .util import (
     T,
     chunked,
     compose,
+    fst,
     is_null,
     iterate,
     nonnull_head,
     print_,
     set_verbose,
+    snd,
     swap,
     translate,
 )
@@ -106,7 +107,7 @@ def sand_grain_next(
 ) -> Optional[GridCoordinates]:
     next_ = partial(next_coord_and_value, grid, current_coord)
     candidates = map(next_, (DOWN, LEFT, RIGHT))
-    acceptable_coords = map(itemgetter(0), filter(compose(itemgetter(1), is_null), candidates))
+    acceptable_coords = map(fst, filter(compose(snd, is_null), candidates))
     return next(acceptable_coords, None)
 
 

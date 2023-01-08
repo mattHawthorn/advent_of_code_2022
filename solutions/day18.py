@@ -8,6 +8,8 @@ from .util import (
     GridCoordinates,
     GridCoordinates3D,
     djikstra_any,
+    fst,
+    snd,
     translate,
     translate_inv,
     weighted_edges_to_graph,
@@ -53,8 +55,8 @@ def surface(shape: Set[GridCoordinates3D]) -> Iterator[GridCoordinates3D]:
 
 
 def ranges(shape: Set[GridCoordinates3D]) -> Tuple[range, range, range]:
-    xs = set(map(itemgetter(0), shape))
-    ys = set(map(itemgetter(1), shape))
+    xs = set(map(fst, shape))
+    ys = set(map(snd, shape))
     zs = set(map(itemgetter(2), shape))
     xrange = range(min(xs), max(xs) + 1)
     yrange = range(min(ys), max(ys) + 1)

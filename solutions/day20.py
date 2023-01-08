@@ -1,10 +1,9 @@
 from collections import deque
 from functools import reduce
 from itertools import chain, repeat, takewhile
-from operator import itemgetter
 from typing import IO, Deque, List, Tuple
 
-from .util import compose
+from .util import compose, fst
 
 Cycle = Deque[Tuple[int, int]]
 
@@ -24,7 +23,7 @@ def rotate(cycle: Cycle, offset: int) -> Cycle:
 
 
 def mix(cycle: Cycle, idx: int) -> Cycle:
-    offset = sum(1 for _ in takewhile(compose(itemgetter(0), idx.__ne__), cycle))
+    offset = sum(1 for _ in takewhile(compose(fst, idx.__ne__), cycle))
     cycle = rotate(cycle, -offset)
     idx_, value = cycle.popleft()
     cycle = rotate(cycle, -value)

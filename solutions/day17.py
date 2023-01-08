@@ -1,6 +1,5 @@
 from functools import partial
 from itertools import chain, cycle, filterfalse, islice, repeat, takewhile
-from operator import itemgetter
 from typing import IO, Dict, Iterable, List, Set, Tuple, cast
 
 from .util import (
@@ -13,6 +12,7 @@ from .util import (
     iterate,
     print_,
     set_verbose,
+    snd,
     translate_all,
 )
 
@@ -128,7 +128,7 @@ def grid_state_key(grid: SparseGrid) -> bytes:
             if not intersects(grid, translate_all((x, top), rock))
         }
         assert init_coords
-        has_frontier = compose(itemgetter(1), bool)
+        has_frontier = compose(snd, bool)
         step_ = partial(step, grid, rock)
         steps = takewhile(has_frontier, iterate(step_, (init_coords, frontier)))
         coords, _ = list(steps)[-1]

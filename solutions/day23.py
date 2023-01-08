@@ -1,10 +1,9 @@
 from collections import Counter, deque
 from functools import partial, reduce
 from itertools import accumulate, count, islice, repeat, takewhile
-from operator import itemgetter
 from typing import IO, Dict, Iterator, List, Optional, Tuple
 
-from .util import GridCoordinates, SparseGrid, T, Vector, compose, translate
+from .util import GridCoordinates, SparseGrid, T, Vector, compose, fst, snd, translate
 
 ELF, EMPTY = "#", "."
 DIRECTIONS: List[Tuple[Vector, List[Vector]]] = [
@@ -71,7 +70,7 @@ def rotate(xs: List[T]) -> Iterator[List[T]]:
 
 def simulate(grid: SparseGrid, steps: int) -> SparseGrid:
     directions = islice(rotate(DIRECTIONS), steps)
-    step_ = compose(step, itemgetter(0))  # type: ignore
+    step_ = compose(step, fst)  # type: ignore
     return reduce(step_, directions, grid)  # type: ignore
 
 
@@ -81,16 +80,16 @@ def simulate_until_stationary(grid: SparseGrid) -> int:
     def step_(grid_, directions):
         return step(grid_[0], directions)
 
-    nonstationary = itemgetter(1)
+    nonstationary = snd
     steps = takewhile(nonstationary, accumulate(directions, step_, initial=(grid, True)))
     return sum(1 for _ in steps)
 
 
 def score(grid: SparseGrid) -> int:
-    x_min = min(map(itemgetter(0), grid.grid))
-    x_max = max(map(itemgetter(0), grid.grid))
-    y_min = min(map(itemgetter(1), grid.grid))
-    y_max = max(map(itemgetter(1), grid.grid))
+    x_min = min(map(fst, grid.grid))
+    x_max = max(map(fst, grid.grid))
+    y_min = min(map(snd, grid.grid))
+    y_max = max(map(snd, grid.grid))
     return (x_max - x_min + 1) * (y_max - y_min + 1) - len(grid.grid)
 
 

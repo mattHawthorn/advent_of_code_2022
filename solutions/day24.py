@@ -2,7 +2,6 @@ import os
 import time
 from functools import partial
 from itertools import chain, islice, repeat
-from operator import itemgetter
 from typing import IO, Iterable, List, NamedTuple, Optional, Set, Tuple
 
 from .util import (
@@ -10,6 +9,7 @@ from .util import (
     T,
     compose,
     djikstra_any,
+    fst,
     iterate,
     lcm,
     manhattan_distance,
@@ -171,9 +171,9 @@ def run(
     time_steps = list(islice(iterate(time_step, valley), n_time_steps))
 
     next_states_ = compose(partial(next_states, time_steps), with_const_weight)  # type: ignore
-    is_end = compose(itemgetter(0), valley.end.__eq__)
-    is_start = compose(itemgetter(0), valley.start.__eq__)
-    dist_to_end = compose(itemgetter(0), partial(manhattan_distance, valley.end))
+    is_end = compose(fst, valley.end.__eq__)
+    is_start = compose(fst, valley.start.__eq__)
+    dist_to_end = compose(fst, partial(manhattan_distance, valley.end))
     initial_state = (valley.start, 1)
 
     def shortest_path(state, is_terminal):

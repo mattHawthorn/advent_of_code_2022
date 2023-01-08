@@ -79,6 +79,6 @@ R 2"""
 def test():
     import io
 
-    actual = run(io.StringIO(test_input), n=2, verbose=True)
+    actual = run(io.StringIO(test_input), n=2)
     expected = 13
     assert actual == expected, (actual, expected)

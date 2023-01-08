@@ -1,8 +1,7 @@
 from functools import partial
-from operator import itemgetter
 from typing import IO, Optional, Tuple
 
-from .util import Edge, Grid, GridCoordinates, djikstra_all, grid_to_graph, reverse_graph
+from .util import Edge, Grid, GridCoordinates, djikstra_all, grid_to_graph, reverse_graph, snd
 
 START, END, START_CHAR, END_CHAR = "S", "E", "a", "z"
 
@@ -59,7 +58,7 @@ def run(input_: IO[str], part_2: bool = True):
     weight_fn = partial(edge_weight, grid)
     graph = reverse_graph(grid_to_graph(grid, weight_fn))
     path_dists = djikstra_all(graph, end, starts)
-    path, dist = min(path_dists, key=itemgetter(1))
+    path, dist = min(path_dists, key=snd)
     return dist
 
 
