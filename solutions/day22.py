@@ -13,6 +13,8 @@ from .util import (
     gcd,
     identity,
     iterate,
+    print_,
+    set_verbose,
     translate,
     translate_inv,
     weighted_edges_to_graph,
@@ -344,11 +346,13 @@ def start_coords(board: Board) -> GridCoordinates:
     return (x, y)
 
 
-def run(input_: IO[str], part_2: bool = True):
+def run(input_: IO[str], part_2: bool = True, verbose: bool = False):
+    set_verbose(verbose)
     board, instructions = parse(input_, cube_topology=part_2)
     initial_state = (start_coords(board), E)
     final_state = apply_instructions(board, initial_state, instructions)
-    print(final_state)
+    print_("Initial state:", initial_state)
+    print_("Final state:", final_state)
     return decode(final_state)
 
 
