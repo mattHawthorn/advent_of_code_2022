@@ -26,6 +26,13 @@ def same_parity(a, b):
     [
         (same_parity, operator.add, [1, 2, 3, 1, 5], None, [1, 2, 4, 5]),
         (operator.eq, operator.add, [0, 0, 0, 1, 1, 2, 4], None, [0, 8]),
+        (
+            share_prefix,
+            longest_common_prefix,
+            ["bar", "ba", "barn", "baz", "q", "quux"],
+            "foo",
+            ["foo", "ba", "q"],
+        ),
     ],
 )
 def test_reduce_while(op, agg, values, init, expected):
