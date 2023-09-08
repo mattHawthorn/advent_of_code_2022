@@ -32,6 +32,16 @@ recursive_function_overwrites_default_tailrec = tail_recursive(
 )
 
 
+@tail_recursive
+def recursive_generator_tailrec(x: int):
+    if x >= 0:
+        if x % 2 == 0:
+            yield x, len(stack())
+            yield from recursive_generator_tailrec(x - 2)
+        else:
+            yield from recursive_generator_tailrec(x - 1)
+
+
 @pytest.mark.parametrize(
     "n",
     range(20),
@@ -51,4 +61,15 @@ def test_recursive_function_overwrites_default(x: int, y: str):
     )
     expected = recursive_function_overwrites_default(x, y)
     actual = recursive_function_overwrites_default_tailrec(x, y)
-    assert actual == expected
+    assert actual == expected, (expected, actual)
+
+
+@pytest.mark.parametrize("x", range(10))
+def test_recursive_generator_function(x: int):
+    expected = list(range(0, x + 1, 2))[::-1]
+    stack_height = len(stack())
+    actual_ = list(recursive_generator_tailrec(x))
+    actual = [n for n, height in actual_]
+    max_stack_height = max(height for _, height in actual_)
+    assert actual == expected, (expected, actual)
+    assert max_stack_height <= stack_height + 2

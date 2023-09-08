@@ -7,7 +7,9 @@ from types import CodeType, FunctionType
 from typing import Callable, Dict, Iterable, Iterator, List, Optional, Sequence, Tuple
 from warnings import warn
 
-RETURN_OPS = {name for name in dis.opname if name.startswith("RETURN_")}
+# a tail-position 'yield from' may be eliminated but not a simple 'yield'; 'yield from' preserves
+# type while 'yield' contradicts by assuming the function is both a normal function and a generator
+RETURN_OPS = {name for name in dis.opname if name.startswith("RETURN_")} | {"GET_YIELD_FROM_ITER"}
 SIDE_EFFECT_OPS = RETURN_OPS | {
     name
     for name in dis.opname

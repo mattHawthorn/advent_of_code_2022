@@ -183,6 +183,7 @@ def window(size: int, it: Iterable[T]) -> Iterator[Deque[T]]:
             yield win
 
 
+@tail_recursive
 def reduce_while(
     condition: Callable[[T, T], bool],
     agg: Callable[[T, T], T],
