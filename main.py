@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 import json
 import sys
+import warnings
 from importlib import import_module
 from inspect import signature
 from pathlib import Path
@@ -9,6 +10,8 @@ from typing import IO, Protocol, TypeVar, Union
 
 from bourbaki.application.cli import CommandLineInterface, cli_spec  # type: ignore
 from bourbaki.application.typed_io.cli_parse import cli_parser  # type: ignore
+
+warnings.filterwarnings("ignore", r".* jump offsets", category=UserWarning, module=r".*\.tailrec")
 
 INPUT_DIR = Path("inputs/")
 
